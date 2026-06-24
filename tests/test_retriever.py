@@ -1,6 +1,8 @@
 """Test suite for RAG retriever."""
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.rag.retriever import retrieve
 
 
@@ -94,21 +96,20 @@ class TestIngestDocument:
         # Assert: returns the chunk count
         assert result == 3
 
-    def test_ingest_document_empty_text_returns_zero(self, monkeypatch):
-        """ingest_document with empty text should return 0."""
+    def test_ingest_document_empty_text_raises_value_error(self):
+        """ingest_document with empty text should raise ValueError."""
         from app.rag.ingest import ingest_document
 
-        mock_chunk_text = MagicMock(return_value=[])
-        mock_upsert_chunks = MagicMock(return_value=0)
+        with pytest.raises(ValueError) as exc_info:
+            ingest_document(user_id="user_001", doc_id="doc_001", text="")
 
-        monkeypatch.setattr("app.rag.ingest.chunk_text", mock_chunk_text)
-        monkeypatch.setattr("app.rag.ingest.upsert_chunks", mock_upsert_chunks)
+        assert "ingest_document requires either non-empty text" in str(exc_info.value)
 
-        result = ingest_document(
-            user_id="user_001", doc_id="doc_001", text=""
-        )
+    def test_ingest_document_no_content_raises_value_error(self):
+        """ingest_document with no content (all kwargs None) should raise ValueError."""
+        from app.rag.ingest import ingest_document
 
-        assert result == 0
-        mock_upsert_chunks.assert_called_once_with(
-            user_id="user_001", doc_id="doc_001", chunks=[]
-        )
+        with pytest.raises(ValueError) as exc_info:
+            ingest_document(user_id="u", doc_id="d")
+
+        assert "ingest_document requires either non-empty text" in str(exc_info.value)
