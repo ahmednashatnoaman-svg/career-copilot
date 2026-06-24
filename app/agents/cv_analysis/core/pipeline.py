@@ -3,7 +3,7 @@ Orchestrates the full CV analysis pipeline:
   1. Extract raw text (PDF/DOCX/pasted text, with OCR fallback)
   2. Structural extraction (spaCy NER + regex: name, contact info, orgs, sections)
   3. ATS scoring (deterministic rules engine)
-  4. LLM feedback (Groq: skills, job titles, strengths/weaknesses, suggestions,
+  4. LLM feedback (LLM: skills, job titles, strengths/weaknesses, suggestions,
      and JD-alignment notes in tailored mode)
   5. Assemble into the CVAnalysisResponse contract
 """
