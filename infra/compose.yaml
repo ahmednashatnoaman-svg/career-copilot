@@ -11,6 +11,16 @@ services:
     image: docker.io/qdrant/qdrant:latest
     ports: ["6333:6333"]
     volumes: ["qdrantdata:/qdrant/storage"]
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Containerfile
+    env_file: ../.env
+    environment:
+      DATABASE_URL: "postgresql://career:career@postgres:5432/career"
+      QDRANT_URL: "http://qdrant:6333"
+    ports: ["8000:8000"]
+    depends_on: [postgres, qdrant]
 volumes:
   pgdata:
   qdrantdata:
