@@ -29,3 +29,9 @@ def test_cv_standalone_text(monkeypatch):
     out = cv_analysis_node({"resume_text": "Jane Doe. Python, FastAPI, LangGraph. 3 years backend."})
     assert "cv_analysis" in out
     assert out["cv_analysis"].entities is not None
+
+
+def test_coaching_graph_builds():
+    from app.agents.coaching.graph import build_coaching_graph
+    g = build_coaching_graph(checkpointer=None)
+    assert g.get_graph().nodes
