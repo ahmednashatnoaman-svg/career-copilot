@@ -160,11 +160,15 @@ def _dispatch_route(state: CopilotState) -> str:
     """Return the edge label for the dispatch conditional.
 
     If ``next_agent`` names a known agent, route to that agent node.
+    Plan 3 inserts the application-generation node before application_send;
+    until then apply intent routes straight to the HITL gate.
     When ``next_agent`` is absent or unknown, fall through to critic.
     """
     next_agent = state.get("next_agent")
     if next_agent in _AGENT_MAP:
         return next_agent
+    if next_agent == "application":
+        return "application_send"
     return "critic"
 
 
