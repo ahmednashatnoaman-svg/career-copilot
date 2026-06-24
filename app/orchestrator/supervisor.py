@@ -4,13 +4,16 @@ Topology
 --------
 START → router
 router → (dispatch_agent conditional)
-dispatch_agent → one of: cv_analysis | rag | market | coaching
+dispatch_agent → one of: cv_analysis | rag | market | coaching |
+                          matching | portfolio | career_planning | application
    … each agent node advances the plan and jumps back to dispatch_agent
    … when plan is exhausted, dispatch_agent → critic
 critic → (critic_route conditional)
    accept    → aggregate → END
    regenerate → dispatch_agent   (restart plan walk)
    escalate  → application_send → END
+
+application (generation) → application_send → END
 
 Sequential plan-walk rationale
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -24,13 +27,19 @@ hard to achieve reliably.
 
 from __future__ import annotations
 
+import asyncio
+
 from langgraph.graph import END, START, StateGraph
 
+from app.agents.application.agent import application_node
+from app.agents.career_planning.agent import career_planning_node
 from app.agents.coaching.graph import build_coaching_graph
 from app.agents.coaching.schemas import ChatRequest
 from app.agents.cv_analysis.integration.graph_node import cv_analysis_node
 from app.agents.market_research.adapter import market_node
 from app.agents.market_research.schemas import MarketAgentInput, WorkPreferences
+from app.agents.matching.agent import matching_node
+from app.agents.portfolio.agent import portfolio_node
 from app.agents.rag.agent import rag_node
 from app.orchestrator.critic import critic_node, critic_route
 from app.orchestrator.hitl import application_send_node
@@ -117,6 +126,34 @@ def _coaching_wrapper(state: CopilotState) -> dict:
     return _advance_plan(state, coaching_output)
 
 
+def _matching_wrapper(state: CopilotState) -> dict:
+    """Invoke matching_node and advance the plan."""
+    result = matching_node(state)
+    return _advance_plan(state, result)
+
+
+def _portfolio_wrapper(state: CopilotState) -> dict:
+    """Invoke portfolio_node (async) synchronously and advance the plan."""
+    result = asyncio.run(portfolio_node(state))
+    return _advance_plan(state, result)
+
+
+def _career_planning_wrapper(state: CopilotState) -> dict:
+    """Invoke career_planning_node and advance the plan."""
+    result = career_planning_node(state)
+    return _advance_plan(state, result)
+
+
+def _application_wrapper(state: CopilotState) -> dict:
+    """Invoke application_node (generation) and advance the plan.
+
+    This node generates the draft application package.  It does NOT submit;
+    that is handled by application_send (HITL gate) which follows immediately.
+    """
+    result = application_node(state)
+    return _advance_plan(state, result)
+
+
 # ---------------------------------------------------------------------------
 # Plan-walk helpers
 # ---------------------------------------------------------------------------
@@ -145,6 +182,10 @@ _AGENT_MAP = {
     "rag": _rag_wrapper,
     "market": _market_wrapper,
     "coaching": _coaching_wrapper,
+    "matching": _matching_wrapper,
+    "portfolio": _portfolio_wrapper,
+    "career_planning": _career_planning_wrapper,
+    "application": _application_wrapper,
 }
 
 _DISPATCH_TARGET_LABELS = {
@@ -152,6 +193,10 @@ _DISPATCH_TARGET_LABELS = {
     "rag": "rag",
     "market": "market",
     "coaching": "coaching",
+    "matching": "matching",
+    "portfolio": "portfolio",
+    "career_planning": "career_planning",
+    "application": "application",
     None: "critic",          # plan exhausted → proceed to critic
 }
 
@@ -160,15 +205,11 @@ def _dispatch_route(state: CopilotState) -> str:
     """Return the edge label for the dispatch conditional.
 
     If ``next_agent`` names a known agent, route to that agent node.
-    Plan 3 inserts the application-generation node before application_send;
-    until then apply intent routes straight to the HITL gate.
     When ``next_agent`` is absent or unknown, fall through to critic.
     """
     next_agent = state.get("next_agent")
     if next_agent in _AGENT_MAP:
         return next_agent
-    if next_agent == "application":
-        return "application_send"
     return "critic"
 
 
@@ -227,6 +268,10 @@ def build_supervisor(checkpointer=None):
     builder.add_node("rag", _rag_wrapper)
     builder.add_node("market", _market_wrapper)
     builder.add_node("coaching", _coaching_wrapper)
+    builder.add_node("matching", _matching_wrapper)
+    builder.add_node("portfolio", _portfolio_wrapper)
+    builder.add_node("career_planning", _career_planning_wrapper)
+    builder.add_node("application", _application_wrapper)
     builder.add_node("critic", critic_node)
     builder.add_node("application_send", application_send_node)
     builder.add_node("aggregate", _aggregate_node)
@@ -234,32 +279,34 @@ def build_supervisor(checkpointer=None):
     # --- Entry edge ---
     builder.add_edge(START, "router")
 
+    # Full dispatch map: all agent nodes + critic fallback
+    _dispatch_map = {agent: agent for agent in _AGENT_MAP} | {"critic": "critic"}
+
     # --- Router → dispatch (router sets plan + next_agent) ---
     builder.add_conditional_edges(
         "router",
         _dispatch_route,
-        {
-            "cv_analysis": "cv_analysis",
-            "rag": "rag",
-            "market": "market",
-            "coaching": "coaching",
-            "critic": "critic",
-        },
+        _dispatch_map,
     )
 
-    # --- Each agent loops back to re-dispatch (sequential plan walk) ---
-    for agent_name in _AGENT_MAP:
+    # --- Each plan-walk agent loops back to re-dispatch (sequential plan walk) ---
+    # application routes to application_send (HITL gate) after generating the package,
+    # rather than looping back to dispatch like the other plan agents.
+    _plan_agents = {k for k in _AGENT_MAP if k != "application"}
+    _plan_agent_dispatch_map = {agent: agent for agent in _plan_agents} | {
+        "critic": "critic",
+        "application_send": "application_send",
+    }
+
+    for agent_name in _plan_agents:
         builder.add_conditional_edges(
             agent_name,
             _dispatch_route,
-            {
-                "cv_analysis": "cv_analysis",
-                "rag": "rag",
-                "market": "market",
-                "coaching": "coaching",
-                "critic": "critic",
-            },
+            _plan_agent_dispatch_map,
         )
+
+    # application (generation) always proceeds directly to application_send
+    builder.add_edge("application", "application_send")
 
     # --- Critic conditional ---
     builder.add_conditional_edges(
