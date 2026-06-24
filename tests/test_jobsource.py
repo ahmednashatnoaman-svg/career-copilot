@@ -291,13 +291,8 @@ def test_linkedin_handles_tavily_failure_gracefully():
     with patch("tavily.TavilyClient", return_value=mock_client):
         source = LinkedInSource(api_key="test-key")
         # Should not raise, but return empty list
-        try:
-            results = source.search("python", limit=10)
-            # If we got here, graceful handling happened (returns [] or raises caught)
-            assert isinstance(results, list)
-        except RuntimeError:
-            # If subclass lets it propagate, that's also acceptable for now
-            pass
+        results = source.search("python", limit=10)
+        assert results == []
 
 
 # ---------------------------------------------------------------------------
@@ -401,8 +396,5 @@ def test_glassdoor_handles_tavily_failure_gracefully():
     with patch("tavily.TavilyClient", return_value=mock_client):
         source = GlassdoorSource(api_key="test-key")
         # Should not raise, but return empty list
-        try:
-            results = source.search("python", limit=10)
-            assert isinstance(results, list)
-        except RuntimeError:
-            pass
+        results = source.search("python", limit=10)
+        assert results == []
