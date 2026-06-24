@@ -14,7 +14,8 @@ def get_sources() -> list[JobSource]:
 
     Priority:
     - AdzunaSource when both ``adzuna_app_id`` and ``adzuna_app_key`` are set.
-    - TavilyJobsSource as a fallback (or when Adzuna keys are absent).
+    - LinkedInSource + GlassdoorSource (Tavily-based; always available if Tavily key present).
+    - TavilyJobsSource as a fallback (or when no primary sources are available).
     """
     settings = get_settings()
     sources: list[JobSource] = []
@@ -24,10 +25,18 @@ def get_sources() -> list[JobSource]:
 
         sources.append(AdzunaSource(app_id=settings.adzuna_app_id, app_key=settings.adzuna_app_key))
 
+    # Add LinkedIn + Glassdoor sources if Tavily API key is available
+    tavily_key = settings.tavily_api_key or ""
+    if tavily_key:
+        from app.tools.jobsource.glassdoor import GlassdoorSource
+        from app.tools.jobsource.linkedin import LinkedInSource
+
+        sources.append(LinkedInSource(api_key=tavily_key))
+        sources.append(GlassdoorSource(api_key=tavily_key))
+
     if not sources:
         # No primary source available — fall back to Tavily
-        api_key = settings.tavily_api_key or ""
-        sources.append(TavilyJobsSource(api_key=api_key))
+        sources.append(TavilyJobsSource(api_key=tavily_key))
 
     return sources
 
