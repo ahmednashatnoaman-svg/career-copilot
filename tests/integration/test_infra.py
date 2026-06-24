@@ -1,3 +1,14 @@
+"""Infrastructure-gated integration tests.
+
+These tests require live Postgres / Qdrant and are skipped unless
+INFRA_UP=1 is set in the environment.
+
+To run manually (after `podman compose up -d`):
+    INFRA_UP=1 uv run pytest tests/integration -v
+"""
+
+from __future__ import annotations
+
 import os
 
 import pytest
@@ -25,6 +36,42 @@ def test_checkpointer_setup():
 
     with checkpointer_cm() as cp:
         assert cp is not None
+
+
+def test_alembic_upgrade_head_creates_tables() -> None:
+    """Run alembic upgrade head and verify all six tables exist in the DB."""
+    import subprocess
+
+    from sqlalchemy import create_engine, inspect, text
+
+    from app.core.config import get_settings
+
+    # Run the migration
+    result = subprocess.run(  # noqa: S603
+        ["uv", "run", "alembic", "upgrade", "head"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"alembic upgrade head failed:\n{result.stdout}\n{result.stderr}"
+    )
+
+    # Verify tables exist
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    with engine.connect() as conn:
+        inspector = inspect(conn)
+        existing_tables = set(inspector.get_table_names())
+
+    expected = {"users", "documents", "jobs", "matches", "applications", "runs"}
+    missing = expected - existing_tables
+    assert not missing, f"Missing tables after migration: {missing}"
+
+    # Cleanup: drop and recreate schema for test isolation
+    engine = create_engine(settings.database_url)
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
 
 
 def test_rag_store_per_user_isolation():
