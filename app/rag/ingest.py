@@ -35,6 +35,19 @@ def ingest_document(
                     or if both are provided.
         UnsupportedFileTypeError: If file type is not .pdf or .docx.
     """
+    # Validate inputs: prefer text if provided, else require both file_bytes and filename
+    if text and text.strip():
+        # Text is provided and non-empty; use it
+        pass
+    elif file_bytes is not None and filename is not None:
+        # Both file_bytes and filename are provided; use them
+        pass
+    else:
+        # Neither valid text nor valid (file_bytes, filename) pair provided
+        raise ValueError(
+            "ingest_document requires either non-empty text, or both file_bytes and filename"
+        )
+
     # Extract text from file or use provided text
     extracted_text = extract_text(
         file_bytes=file_bytes, filename=filename, raw_text=text
