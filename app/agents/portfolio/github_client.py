@@ -20,7 +20,9 @@ async def fetch_profile(
         token: GitHub personal access token (required).
 
     Returns:
-        Dict with keys: username, repos, followers, top_projects, languages.
+        Dict with keys: username, repos, followers, top_projects, languages, stars, activity.
+        - stars: Total stargazers count summed across all fetched repos.
+        - activity: Count of repositories (proxy for recent activity when push dates unavailable).
         Returns None if username or token is missing or on HTTP error.
     """
     if not username or not token:
@@ -52,13 +54,16 @@ async def fetch_profile(
             # Extract top projects (limit to 10)
             top_projects = []
             languages_count: dict[str, int] = {}
+            total_stars = 0
 
             for repo in repos_data[:10]:
+                stars = repo.get("stargazers_count", 0)
+                total_stars += stars
                 top_projects.append(
                     {
                         "name": repo.get("name", ""),
                         "description": repo.get("description", ""),
-                        "stars": repo.get("stargazers_count", 0),
+                        "stars": stars,
                         "language": repo.get("language", "Unknown"),
                         "url": repo.get("html_url", ""),
                     }
@@ -73,6 +78,8 @@ async def fetch_profile(
                 "followers": followers,
                 "top_projects": top_projects,
                 "languages": languages_count,
+                "stars": total_stars,
+                "activity": len(repos_data),
             }
 
     except httpx.HTTPError:
