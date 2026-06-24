@@ -32,28 +32,32 @@ class LinkedInSource(JobSource):
         if location:
             search_query += f" {location}"
 
-        client = TavilyClient(api_key=self._api_key)
-        response = client.search(
-            query=search_query,
-            search_depth="basic",
-            max_results=limit,
-            include_answer=False,
-        )
-
-        results: list[JobPosting] = []
-        for item in response.get("results", []):
-            results.append(
-                JobPosting(
-                    title=item.get("title", "Unknown Title"),
-                    company=_extract_linkedin_company(item),
-                    location=location,
-                    url=item.get("url", ""),
-                    salary=None,
-                    source="linkedin",
-                    snippet=item.get("content"),
-                )
+        try:
+            client = TavilyClient(api_key=self._api_key)
+            response = client.search(
+                query=search_query,
+                search_depth="basic",
+                max_results=limit,
+                include_answer=False,
             )
-        return results
+
+            results: list[JobPosting] = []
+            for item in response.get("results", []):
+                results.append(
+                    JobPosting(
+                        title=item.get("title", "Unknown Title"),
+                        company=_extract_linkedin_company(item),
+                        location=location,
+                        url=item.get("url", ""),
+                        salary=None,
+                        source="linkedin",
+                        snippet=item.get("content"),
+                    )
+                )
+            return results
+        except Exception as e:
+            logger.error(f"LinkedIn search failed: {e}")
+            return []
 
 
 def _extract_linkedin_company(item: dict) -> str:
