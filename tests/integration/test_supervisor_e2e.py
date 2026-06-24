@@ -49,6 +49,31 @@ def test_builds():
     )
 
 
+def test_application_plan_entry_routes_to_hitl():
+    """Test that 'application' in next_agent routes to application_send, not critic.
+    
+    When the router emits 'application' in the plan, _dispatch_route must
+    return 'application_send' (the HITL gate), not 'critic'.
+    """
+    from app.orchestrator.state import CopilotState
+    from app.orchestrator.supervisor import _dispatch_route
+
+    # Create a mock state with next_agent == "application"
+    state: CopilotState = {
+        "user_id": "test_user",
+        "thread_id": "test_thread",
+        "user_message": "Test message",
+        "plan": [],
+        "next_agent": "application",
+    }
+    
+    # _dispatch_route should return "application_send"
+    result = _dispatch_route(state)
+    assert result == "application_send", (
+        f"Expected _dispatch_route to return 'application_send' when next_agent='application', "
+        f"but got '{result}'"
+    )
+
 # ---------------------------------------------------------------------------
 # Live gate (requires INFRA_UP=1)
 # ---------------------------------------------------------------------------
