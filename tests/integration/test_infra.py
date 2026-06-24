@@ -18,3 +18,10 @@ def test_postgres_reachable():
 
     with psycopg.connect(get_settings().database_url, connect_timeout=3) as conn:
         assert conn.execute("select 1").fetchone()[0] == 1
+
+
+def test_checkpointer_setup():
+    from app.memory.checkpointer import checkpointer_cm
+
+    with checkpointer_cm() as cp:
+        assert cp is not None
