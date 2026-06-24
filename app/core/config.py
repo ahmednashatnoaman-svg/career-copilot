@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     github_token: str | None = None
 
     # datastores
-    database_url: str = "postgresql://career:career@127.0.0.1:5432/career"
+    database_url: str = "postgresql://career:career@127.0.0.1:5433/career"
     qdrant_url: str = "http://127.0.0.1:6333"
 
     # tracing
