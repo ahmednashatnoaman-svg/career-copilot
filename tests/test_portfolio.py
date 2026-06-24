@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.agents.portfolio.agent import PortfolioReport, portfolio_node
@@ -73,6 +74,11 @@ async def test_github_client_fetch_profile_success():
         assert result["top_projects"][0]["stars"] == 450
         assert "languages" in result
         assert "Python" in result["languages"]
+        # Check new spec-compatible fields
+        assert "stars" in result
+        assert result["stars"] == 655  # 450 + 120 + 85
+        assert "activity" in result
+        assert result["activity"] == 3  # repo count
 
 
 @pytest.mark.asyncio
@@ -87,6 +93,27 @@ async def test_github_client_fetch_profile_missing_username():
     """Test fetch_profile gracefully handles missing username."""
     result = await fetch_profile(None, "fake_token")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_github_client_fetch_profile_http_error():
+    """Test fetch_profile gracefully handles HTTP errors."""
+    with patch("httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
+
+        # Mock profile request to raise HTTPError (e.g., 404 Not Found)
+        profile_response = MagicMock()
+        profile_response.raise_for_status.side_effect = httpx.HTTPError("404 Not Found")
+
+        mock_client.get.return_value = profile_response
+
+        # Call fetch_profile — should return None and not propagate exception
+        result = await fetch_profile("nonexistent_user", "fake_token")
+
+        # Assert graceful degradation
+        assert result is None
 
 
 @pytest.mark.asyncio
