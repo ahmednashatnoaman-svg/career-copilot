@@ -26,6 +26,10 @@ EXPECTED_NODES = {
     "rag",
     "market",
     "coaching",
+    "matching",
+    "portfolio",
+    "career_planning",
+    "application",
     "critic",
     "application_send",
     "aggregate",
@@ -49,11 +53,12 @@ def test_builds():
     )
 
 
-def test_application_plan_entry_routes_to_hitl():
-    """Test that 'application' in next_agent routes to application_send, not critic.
-    
-    When the router emits 'application' in the plan, _dispatch_route must
-    return 'application_send' (the HITL gate), not 'critic'.
+def test_application_plan_entry_routes_to_application_node():
+    """Test that 'application' in next_agent routes to the application generation node.
+
+    Since Plan 3 registered the application generation node, _dispatch_route must
+    return 'application' (the generation node), NOT 'application_send' directly.
+    The graph then wires application → application_send via a fixed edge.
     """
     from app.orchestrator.state import CopilotState
     from app.orchestrator.supervisor import _dispatch_route
@@ -66,12 +71,13 @@ def test_application_plan_entry_routes_to_hitl():
         "plan": [],
         "next_agent": "application",
     }
-    
-    # _dispatch_route should return "application_send"
+
+    # _dispatch_route should return "application" (the generation node)
     result = _dispatch_route(state)
-    assert result == "application_send", (
-        f"Expected _dispatch_route to return 'application_send' when next_agent='application', "
-        f"but got '{result}'"
+    assert result == "application", (
+        f"Expected _dispatch_route to return 'application' when next_agent='application', "
+        f"but got '{result}'. The application node now routes to application_send via a "
+        f"fixed edge, not through _dispatch_route."
     )
 
 # ---------------------------------------------------------------------------
