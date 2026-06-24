@@ -34,29 +34,33 @@ class GlassdoorSource(JobSource):
         if location:
             search_query += f" {location}"
 
-        client = TavilyClient(api_key=self._api_key)
-        response = client.search(
-            query=search_query,
-            search_depth="basic",
-            max_results=limit,
-            include_answer=False,
-        )
-
-        results: list[JobPosting] = []
-        for item in response.get("results", []):
-            salary = _extract_salary_from_content(item.get("content", ""))
-            results.append(
-                JobPosting(
-                    title=item.get("title", "Unknown Title"),
-                    company=_extract_glassdoor_company(item),
-                    location=location,
-                    url=item.get("url", ""),
-                    salary=salary,
-                    source="glassdoor",
-                    snippet=item.get("content"),
-                )
+        try:
+            client = TavilyClient(api_key=self._api_key)
+            response = client.search(
+                query=search_query,
+                search_depth="basic",
+                max_results=limit,
+                include_answer=False,
             )
-        return results
+
+            results: list[JobPosting] = []
+            for item in response.get("results", []):
+                salary = _extract_salary_from_content(item.get("content", ""))
+                results.append(
+                    JobPosting(
+                        title=item.get("title", "Unknown Title"),
+                        company=_extract_glassdoor_company(item),
+                        location=location,
+                        url=item.get("url", ""),
+                        salary=salary,
+                        source="glassdoor",
+                        snippet=item.get("content"),
+                    )
+                )
+            return results
+        except Exception as e:
+            logger.error(f"Glassdoor search failed: {e}")
+            return []
 
 
 def _extract_glassdoor_company(item: dict) -> str:
