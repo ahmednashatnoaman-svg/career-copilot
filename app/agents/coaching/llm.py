@@ -28,7 +28,10 @@ class LLMService:
 
     def _get_chat(self):
         """Return a chat model via the shared provider router."""
-        return get_llm("reason", temperature=self.settings.groq_temperature)
+        kwargs = {"task": "reason", "temperature": self.settings.groq_temperature}
+        if hasattr(self.settings, "groq_max_tokens") and self.settings.groq_max_tokens:
+            kwargs["max_tokens"] = self.settings.groq_max_tokens
+        return get_llm(**kwargs)
 
     def text(self, system: str, user: str, fallback: str) -> str:
         if not self._configured:
