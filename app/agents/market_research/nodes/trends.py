@@ -236,7 +236,7 @@ def _llm_extract(title: str, snippet: str) -> TrendExtraction | None:
     Returns None on failure so caller can fall back gracefully.
     """
     try:
-        llm = get_llm()
+        llm = get_llm("fast")
         structured = llm.with_structured_output(TrendExtraction)
         result = structured.invoke(
             _TREND_EXTRACTION_PROMPT.format(
