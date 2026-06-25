@@ -20,17 +20,6 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # --- enum type ---
-    applicationstatus = sa.Enum(
-        "DRAFT",
-        "APPROVED",
-        "SENT",
-        "REJECTED",
-        "HUMAN_REQUIRED",
-        name="applicationstatus",
-    )
-    applicationstatus.create(op.get_bind(), checkfirst=True)
-
     # --- users ---
     op.create_table(
         "users",
