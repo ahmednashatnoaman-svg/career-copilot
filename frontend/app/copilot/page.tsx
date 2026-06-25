@@ -118,19 +118,16 @@ export default function CopilotPage() {
 
       setIsSubmittingApproval(true);
       try {
-        // Serialize decision to string as required by api.resumeRun
-        const decisionStr = JSON.stringify(
-          decision.approved
-            ? {
-                approved: true,
-                ...(decision.editedPackage
-                  ? { edited_package: decision.editedPackage }
-                  : {}),
-              }
-            : { approved: false }
-        );
+        const decisionObj: Record<string, unknown> = decision.approved
+          ? {
+              approved: true,
+              ...(decision.editedPackage
+                ? { edited_package: decision.editedPackage }
+                : {}),
+            }
+          : { approved: false };
 
-        await resumeRun(threadId, decisionStr);
+        await resumeRun(threadId, decisionObj);
 
         setApprovalOpen(false);
         setApplicationPackage(null);
