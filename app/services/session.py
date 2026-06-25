@@ -10,9 +10,21 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import get_settings
 
 
+def sqlalchemy_url(database_url: str) -> str:
+    """Normalise a postgres URL to use the psycopg3 (psycopg) dialect.
+
+    SQLAlchemy interprets a bare ``postgresql://`` scheme as psycopg2.
+    This helper rewrites it to ``postgresql+psycopg://`` so that psycopg3
+    is used instead.  An already-correct URL is returned unchanged.
+    """
+    if database_url.startswith("postgresql://") or database_url.startswith("postgres://"):
+        return database_url.replace("://", "+psycopg://", 1)
+    return database_url
+
+
 def _make_session_factory() -> sessionmaker[Session]:
     settings = get_settings()
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(sqlalchemy_url(settings.database_url), pool_pre_ping=True)
     return sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
