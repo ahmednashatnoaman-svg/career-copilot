@@ -57,6 +57,26 @@ def _build_google(task: Task, temperature: float, max_tokens: int | None) -> Bas
     return ChatGoogleGenerativeAI(**kwargs)
 
 
+def _build_azure(temperature: float, max_tokens: int | None) -> BaseChatModel:
+    """Build an Azure AI Foundry model using the OpenAI-compatible endpoint.
+
+    The AI Foundry endpoint already includes /openai/v1, so we use ChatOpenAI
+    with base_url directly rather than AzureChatOpenAI (which adds its own path).
+    """
+    from langchain_openai import ChatOpenAI
+
+    s = get_settings()
+    kwargs: dict = {
+        "model": s.azure_openai_deployment_name,
+        "api_key": s.azure_openai_api_key,
+        "base_url": s.azure_openai_endpoint,
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return ChatOpenAI(**kwargs)
+
+
 def get_llm(
     task: Task = "reason",
     temperature: float = 0.0,
@@ -82,7 +102,14 @@ def get_llm(
     if s.llm_provider == "google":
         primary = _build_google(task, temperature, max_tokens)
         if s.groq_api_key:
-            # groq model for fast task, otherwise the reason model
+            groq_model = s.llm_model_fast if task == "fast" else s.llm_model
+            secondary = _build_groq(groq_model, temperature, max_tokens)
+            return primary.with_fallbacks([secondary])
+        return primary
+
+    if s.llm_provider == "azure":
+        primary = _build_azure(temperature, max_tokens)
+        if s.groq_api_key:
             groq_model = s.llm_model_fast if task == "fast" else s.llm_model
             secondary = _build_groq(groq_model, temperature, max_tokens)
             return primary.with_fallbacks([secondary])
