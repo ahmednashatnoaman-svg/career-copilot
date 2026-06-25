@@ -1,6 +1,9 @@
 /**
  * Typed API client for the Career Copilot backend.
  * All network calls go through this module — components never call fetch directly.
+ *
+ * Auth: each request attaches the Supabase session JWT in the Authorization header
+ * so the backend middleware can verify it server-side.
  */
 
 import type {
@@ -9,13 +12,27 @@ import type {
   RunResponse,
 } from "./types";
 
-/**
- * Backend API base URL.
- * Set NEXT_PUBLIC_API_BASE in your environment to override.
- * Default: http://localhost:8000
- */
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+// ── Auth header helper ────────────────────────────────────────
+
+/**
+ * Returns { Authorization: "Bearer <token>" } when a Supabase session exists.
+ * Returns an empty object when there is no session (public routes / server-side).
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const { createClient } = await import("./supabase");
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) return { Authorization: `Bearer ${token}` };
+  } catch {
+    // not in a browser context or Supabase unavailable
+  }
+  return {};
+}
 
 // ── Helper ───────────────────────────────────────────────────
 
@@ -41,8 +58,10 @@ export async function uploadDocument(
   form.append("user_id", userId);
   form.append("file", file);
 
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/documents`, {
     method: "POST",
+    headers: auth,  // no Content-Type — browser sets it with boundary for FormData
     body: form,
   });
 
@@ -51,7 +70,7 @@ export async function uploadDocument(
 
 /**
  * Start an agent run.
- * POST /runs  (json: { user_id, message, doc_ids, resume_text, github_username, github_token })
+ * POST /runs
  */
 export async function startRun(
   userId: string,
@@ -61,9 +80,10 @@ export async function startRun(
   githubUsername = '',
   githubToken = '',
 ): Promise<RunResponse> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/runs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({
       user_id: userId,
       message,
@@ -79,18 +99,19 @@ export async function startRun(
 
 /**
  * Resume a paused run after a human-in-the-loop decision.
- * POST /runs/{threadId}/resume  (json body IS the decision object)
+ * POST /runs/{threadId}/resume
  *
- * The backend reads the entire body as `decision: dict` and passes it directly
- * to Command(resume=decision), so we must NOT nest it under a "decision" key.
+ * Body IS the decision object — the backend passes it directly to
+ * Command(resume=decision), so do NOT nest it.
  */
 export async function resumeRun(
   threadId: string,
   decision: Record<string, unknown>
 ): Promise<void> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(threadId)}/resume`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify(decision),
   });
 
@@ -106,8 +127,9 @@ export async function listApplications(
 ): Promise<ApplicationPackage[]> {
   const url = new URL(`${API_BASE}/applications`);
   url.searchParams.set("user_id", userId);
+  const auth = await getAuthHeaders();
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: auth });
   return handleResponse<ApplicationPackage[]>(res);
 }
 
@@ -122,7 +144,8 @@ import type { RankedMatch } from "./types";
 export async function listMatches(userId: string): Promise<RankedMatch[]> {
   const url = new URL(`${API_BASE}/matches`);
   url.searchParams.set('user_id', userId);
-  const res = await fetch(url.toString());
+  const auth = await getAuthHeaders();
+  const res = await fetch(url.toString(), { headers: auth });
   if (!res.ok) return [];
   return res.json() as Promise<RankedMatch[]>;
 }
@@ -146,9 +169,10 @@ export async function coachingChat(
   mode = 'general',
   profile: Record<string, unknown> = {}
 ): Promise<CoachingMessage> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/coaching/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ user_id: userId, message, thread_id: threadId, mode, profile }),
   });
   return handleResponse<CoachingMessage>(res);
@@ -175,9 +199,10 @@ export async function startInterview(
   interviewType = 'behavioral',
   cvSummary = ''
 ): Promise<InterviewSession> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/interviews/start`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ user_id: userId, role, interview_type: interviewType, cv_summary: cvSummary }),
   });
   return handleResponse<InterviewSession>(res);
@@ -188,9 +213,10 @@ export async function startInterview(
  * POST /interviews/{sessionId}/answer
  */
 export async function answerInterview(sessionId: string, answer: string): Promise<InterviewSession> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/interviews/${encodeURIComponent(sessionId)}/answer`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ answer }),
   });
   return handleResponse<InterviewSession>(res);
@@ -217,9 +243,10 @@ export async function tailorCV(
   jobTitle = '',
   company = ''
 ): Promise<TailoredCV> {
+  const auth = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/cv/tailor`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ user_id: userId, resume_text: resumeText, job_description: jobDescription, job_title: jobTitle, company }),
   });
   return handleResponse<TailoredCV>(res);
