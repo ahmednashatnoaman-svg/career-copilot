@@ -302,8 +302,9 @@ def salaries_node(state: MarketAgentState) -> dict:
     all_salaries: list[SalaryInsight] = []
 
     queries: list[LaneQuery] = [
-        q for q in state.get("lane_queries", [])
-        if q.lane == "salary"
+        (LaneQuery(**q) if isinstance(q, dict) else q)
+        for q in state.get("lane_queries", [])
+        if (q.get("lane") if isinstance(q, dict) else q.lane) == "salary"
     ]
 
     if not queries:
@@ -355,4 +356,4 @@ def salaries_node(state: MarketAgentState) -> dict:
             f"mode={query.market_mode} → {len(salaries)} insights"
         )
 
-    return {"salaries": all_salaries}
+    return {"salaries": [s.model_dump(mode="json") for s in all_salaries]}
