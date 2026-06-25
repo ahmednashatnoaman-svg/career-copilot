@@ -15,6 +15,7 @@ interface UploadedFile {
 interface UploadDropzoneProps {
   userId: string;
   className?: string;
+  onDocUploaded?: (docId: string) => void;
 }
 
 const ACCEPTED_TYPES = [
@@ -26,7 +27,7 @@ const ACCEPTED_TYPES = [
 
 const ACCEPTED_EXTENSIONS = ".pdf,.doc,.docx,.txt";
 
-export function UploadDropzone({ userId, className }: UploadDropzoneProps) {
+export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,7 @@ export function UploadDropzone({ userId, className }: UploadDropzoneProps) {
                   : f
               )
             );
+            onDocUploaded?.(res.doc_id);
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Upload failed";
             setFiles((prev) =>
