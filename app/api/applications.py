@@ -92,7 +92,7 @@ async def list_applications(user_id: str):
 @router.post("")
 async def create_application(
     user_id: str = Body(...),
-    application: dict = Body(...),
+    application: dict = Body(...),  # noqa: B008
 ):
     save_application(user_id, application)
     return {"status": "saved"}
