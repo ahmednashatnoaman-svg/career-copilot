@@ -51,17 +51,27 @@ export async function uploadDocument(
 
 /**
  * Start an agent run.
- * POST /runs  (json: { user_id, message, doc_ids })
+ * POST /runs  (json: { user_id, message, doc_ids, resume_text, github_username, github_token })
  */
 export async function startRun(
   userId: string,
   message: string,
-  docIds: string[] = []
+  docIds: string[] = [],
+  resumeText = '',
+  githubUsername = '',
+  githubToken = '',
 ): Promise<RunResponse> {
   const res = await fetch(`${API_BASE}/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, message, doc_ids: docIds }),
+    body: JSON.stringify({
+      user_id: userId,
+      message,
+      doc_ids: docIds,
+      resume_text: resumeText,
+      github_username: githubUsername,
+      github_token: githubToken,
+    }),
   });
 
   return handleResponse<RunResponse>(res);
@@ -99,4 +109,118 @@ export async function listApplications(
 
   const res = await fetch(url.toString());
   return handleResponse<ApplicationPackage[]>(res);
+}
+
+// ── Matches ──────────────────────────────────────────────────
+
+import type { RankedMatch } from "./types";
+
+/**
+ * List ranked job matches for a user.
+ * GET /matches?user_id=<userId>
+ */
+export async function listMatches(userId: string): Promise<RankedMatch[]> {
+  const url = new URL(`${API_BASE}/matches`);
+  url.searchParams.set('user_id', userId);
+  const res = await fetch(url.toString());
+  if (!res.ok) return [];
+  return res.json() as Promise<RankedMatch[]>;
+}
+
+// ── Coaching chat ─────────────────────────────────────────────
+
+export interface CoachingMessage {
+  thread_id: string;
+  response: string;
+  mode: string;
+}
+
+/**
+ * Send a message to the coaching chat endpoint.
+ * POST /coaching/chat
+ */
+export async function coachingChat(
+  userId: string,
+  message: string,
+  threadId?: string,
+  mode = 'general',
+  profile: Record<string, unknown> = {}
+): Promise<CoachingMessage> {
+  const res = await fetch(`${API_BASE}/coaching/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, message, thread_id: threadId, mode, profile }),
+  });
+  return handleResponse<CoachingMessage>(res);
+}
+
+// ── Mock interviews ───────────────────────────────────────────
+
+export interface InterviewSession {
+  session_id: string;
+  question?: string;
+  feedback?: string;
+  question_number: number;
+  status: 'active' | 'completed';
+  is_complete?: boolean;
+}
+
+/**
+ * Start a new mock interview session.
+ * POST /interviews/start
+ */
+export async function startInterview(
+  userId: string,
+  role: string,
+  interviewType = 'behavioral',
+  cvSummary = ''
+): Promise<InterviewSession> {
+  const res = await fetch(`${API_BASE}/interviews/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, role, interview_type: interviewType, cv_summary: cvSummary }),
+  });
+  return handleResponse<InterviewSession>(res);
+}
+
+/**
+ * Submit an answer to an interview question.
+ * POST /interviews/{sessionId}/answer
+ */
+export async function answerInterview(sessionId: string, answer: string): Promise<InterviewSession> {
+  const res = await fetch(`${API_BASE}/interviews/${encodeURIComponent(sessionId)}/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answer }),
+  });
+  return handleResponse<InterviewSession>(res);
+}
+
+// ── CV Tailoring ──────────────────────────────────────────────
+
+export interface TailoredCV {
+  tailored_cv: string;
+  original_cv: string;
+  match_score: number;
+  job_title: string;
+  company: string;
+}
+
+/**
+ * Tailor a CV for a specific job description.
+ * POST /cv/tailor
+ */
+export async function tailorCV(
+  userId: string,
+  resumeText: string,
+  jobDescription: string,
+  jobTitle = '',
+  company = ''
+): Promise<TailoredCV> {
+  const res = await fetch(`${API_BASE}/cv/tailor`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, resume_text: resumeText, job_description: jobDescription, job_title: jobTitle, company }),
+  });
+  return handleResponse<TailoredCV>(res);
 }
