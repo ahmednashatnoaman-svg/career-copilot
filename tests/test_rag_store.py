@@ -116,7 +116,9 @@ class TestQuery:
     def test_query_applies_user_id_filter(self):
         mock_client = _make_mock_client()
         fake_vectors = [[0.1] * 384]
-        mock_client.search.return_value = []
+        mock_response = MagicMock()
+        mock_response.points = []
+        mock_client.query_points.return_value = mock_response
 
         with (
             patch("app.rag.store.get_qdrant", return_value=mock_client),
@@ -126,8 +128,8 @@ class TestQuery:
 
             query("alice", "find me a job", top_k=3)
 
-        mock_client.search.assert_called_once()
-        call_kwargs = mock_client.search.call_args
+        mock_client.query_points.assert_called_once()
+        call_kwargs = mock_client.query_points.call_args
         query_filter = call_kwargs.kwargs.get("query_filter")
         assert query_filter is not None, "query_filter must be passed"
 
@@ -144,9 +146,11 @@ class TestQuery:
     def test_query_returns_correct_shape(self):
         mock_client = _make_mock_client()
         fake_vectors = [[0.1] * 384]
-        mock_client.search.return_value = [
+        mock_response = MagicMock()
+        mock_response.points = [
             _make_mock_search_result("chunk text", 0.95, "doc_abc"),
         ]
+        mock_client.query_points.return_value = mock_response
 
         with (
             patch("app.rag.store.get_qdrant", return_value=mock_client),
@@ -164,7 +168,9 @@ class TestQuery:
     def test_query_uses_top_k(self):
         mock_client = _make_mock_client()
         fake_vectors = [[0.1] * 384]
-        mock_client.search.return_value = []
+        mock_response = MagicMock()
+        mock_response.points = []
+        mock_client.query_points.return_value = mock_response
 
         with (
             patch("app.rag.store.get_qdrant", return_value=mock_client),
@@ -174,6 +180,6 @@ class TestQuery:
 
             query("u1", "text", top_k=10)
 
-        call_kwargs = mock_client.search.call_args
+        call_kwargs = mock_client.query_points.call_args
         limit = call_kwargs.kwargs.get("limit")
         assert limit == 10
