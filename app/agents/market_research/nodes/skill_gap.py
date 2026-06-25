@@ -194,11 +194,21 @@ def skill_gap_node(state: MarketAgentState) -> dict:
     # --- 1. User's current skills (lowercased for comparison) ---
     user_input  = state.get("input")
     user_skills: set[str] = set()
-    if user_input and hasattr(user_input, "skills"):
-        user_skills = {s.strip().lower() for s in user_input.skills if s.strip()}
+    if user_input:
+        skills_list = (
+            user_input.get("skills", []) if isinstance(user_input, dict)
+            else getattr(user_input, "skills", [])
+        )
+        user_skills = {s.strip().lower() for s in skills_list if s.strip()}
 
-    postings: list[JobPosting]   = state.get("postings", [])
-    trends:   list[MarketTrend]  = state.get("trends",   [])
+    raw_postings = state.get("postings", [])
+    postings: list[JobPosting] = [
+        (JobPosting(**p) if isinstance(p, dict) else p) for p in raw_postings
+    ]
+    raw_trends = state.get("trends", [])
+    trends: list[MarketTrend] = [
+        (MarketTrend(**t) if isinstance(t, dict) else t) for t in raw_trends
+    ]
 
     # --- 2. Count demanded skills per market ---
     # Structure: {market_mode: {skill_display_name: count}}
@@ -265,4 +275,4 @@ def skill_gap_node(state: MarketAgentState) -> dict:
     skill_gaps.sort(key=lambda g: (order[g.importance], g.skill))
 
     logger.info(f"[skill_gap] identified {len(skill_gaps)} skill gaps")
-    return {"skill_gaps": skill_gaps}
+    return {"skill_gaps": [g.model_dump(mode="json") for g in skill_gaps]}
