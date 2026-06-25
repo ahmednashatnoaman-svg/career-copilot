@@ -139,7 +139,14 @@ def planner_node(state: MarketAgentState) -> dict:
     Returns a dict; LangGraph merges it into shared state.
     No I/O, no side effects.
     """
-    agent_input = state["input"]
+    raw_input = state["input"]
+    # Support both Pydantic model and plain dict (dict arrives if the parent
+    # checkpointer serialized the initial state before planner runs).
+    if isinstance(raw_input, dict):
+        from app.agents.market_research.schemas import MarketAgentInput  # noqa: PLC0415
+        agent_input = MarketAgentInput(**raw_input)
+    else:
+        agent_input = raw_input
 
     # 1. Determine markets
     market_modes = determine_market_modes(agent_input.work_preferences)
@@ -154,12 +161,13 @@ def planner_node(state: MarketAgentState) -> dict:
     # 3. Build lane queries (search params for lane nodes)
     lane_queries = build_lane_queries(market_modes, role_queries, locations)
 
+    planner_output = PlannerOutput(
+        market_modes=market_modes,
+        role_queries=role_queries,
+        locations=locations,
+        skills=skills,
+    )
     return {
-        "planner_output": PlannerOutput(
-            market_modes=market_modes,
-            role_queries=role_queries,
-            locations=locations,
-            skills=skills,
-        ),
-        "lane_queries": lane_queries,
+        "planner_output": planner_output.model_dump(mode="json"),
+        "lane_queries": [q.model_dump(mode="json") for q in lane_queries],
     }
