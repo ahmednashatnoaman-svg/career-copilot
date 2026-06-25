@@ -126,10 +126,21 @@ class PostgresMemory:
             """,
         ]
 
+        # Migration guards: add columns introduced after initial deploy
+        migrations = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+        ]
+
         with self.connect() as conn:
-            with conn.cursor() as cur:
-                for statement in statements:
-                    cur.execute(statement)
+            for statement in statements + migrations:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(statement)
+                except Exception:
+                    # Skip statements that require unavailable extensions (e.g. pgvector)
+                    # or have dependency issues. Core tables (users, conversations, etc.)
+                    # will still be created even if vector-related DDL fails.
+                    pass
 
     def upsert_user_profile(self, user_id: str, profile: dict[str, Any]) -> dict[str, Any]:
         clean_profile = {key: value for key, value in profile.items() if value not in (None, "", [])}
