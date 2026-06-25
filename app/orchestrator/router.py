@@ -11,10 +11,15 @@ initial plan, then applies deterministic guardrails:
 
 from __future__ import annotations
 
+import logging
+
 from pydantic import BaseModel
 
 from app.llm.provider import get_llm
+from app.memory.longterm import recall
 from app.orchestrator.state import CopilotState
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Structured output model
@@ -44,6 +49,7 @@ Available agents (use only names from this list):
 Context:
 - user_message: {user_message}
 - uploaded_doc_ids (non-empty means CV was uploaded): {uploaded_doc_ids}
+- long_term_memory (recalled user facts — may be empty): {long_term_memory}
 
 Return a JSON object with:
   plan      – ordered list of agent names to invoke (subset of the list above)
@@ -71,6 +77,15 @@ def route(state: CopilotState) -> dict:
     """
     user_message: str = state.get("user_message", "")
     uploaded_doc_ids: list[str] = state.get("uploaded_doc_ids") or []
+    user_id: str = state.get("user_id") or ""
+
+    # --- Recall long-term user facts (graceful: returns {} on any error) ---
+    long_term_memory: dict = {}
+    if user_id:
+        try:
+            long_term_memory = recall(user_id)
+        except Exception:
+            logger.warning("router: recall failed for user=%s — continuing without memory", user_id)
 
     # --- LLM call ----------------------------------------------------------
     llm = get_llm("fast")
@@ -79,6 +94,7 @@ def route(state: CopilotState) -> dict:
     prompt = _ROUTING_PROMPT.format(
         user_message=user_message,
         uploaded_doc_ids=uploaded_doc_ids,
+        long_term_memory=long_term_memory or "(none)",
     )
     decision: RoutingDecision = chain.invoke(prompt)
 
