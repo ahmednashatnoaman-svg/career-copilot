@@ -1,22 +1,65 @@
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.applications import router as applications_router
+from app.api.coaching import router as coaching_router
+from app.api.cv import router as cv_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
+from app.api.interviews import router as interviews_router
+from app.api.matches import router as matches_router
 from app.api.runs import router as runs_router
 from app.core.tracing import configure_tracing
 
-app = FastAPI(title="AI Career Copilot")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    configure_tracing()
+    _try_init_supervisor()
+    yield
+
+
+app = FastAPI(title="AI Career Copilot", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://*.vercel.app",
+        os.getenv("FRONTEND_URL", ""),
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+
 app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(runs_router)
 app.include_router(applications_router)
+app.include_router(coaching_router)
+app.include_router(interviews_router)
+app.include_router(cv_router)
+app.include_router(matches_router)
 
 
-@app.on_event("startup")
-def _startup() -> None:
-    configure_tracing()
-    _try_init_supervisor()
+# ---------------------------------------------------------------------------
+# Supervisor init helper
+# ---------------------------------------------------------------------------
 
 
 def _try_init_supervisor() -> None:
@@ -26,8 +69,6 @@ def _try_init_supervisor() -> None:
     where INFRA_UP is not set). Tests inject a stub via
     ``app.api.runs.set_supervisor()``.
     """
-    import os  # noqa: PLC0415
-
     if os.getenv("INFRA_UP") != "1":
         return
 
