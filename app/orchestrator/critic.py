@@ -74,7 +74,38 @@ def critic_node(state: CopilotState) -> dict:
     new_retries: int = current_retries + 1
 
     # --- 2. Build context for the LLM ----------------------------------------
-    draft: str = state.get("final_answer") or state.get("application") or ""
+    # final_answer is only set by aggregate (which runs AFTER critic accepts).
+    # On the first critic pass build a draft from the agent outputs themselves.
+    draft: str = state.get("final_answer") or ""
+    if not draft:
+        preview_parts: list[str] = []
+        if cv := state.get("cv_analysis"):
+            preview_parts.append(f"[CV Analysis]\n{cv}")
+        if rag_out := state.get("rag"):
+            answer = rag_out.get("answer", "") if isinstance(rag_out, dict) else str(rag_out)
+            if answer:
+                preview_parts.append(f"[Knowledge Base]\n{answer}")
+        if market_out := state.get("market"):
+            preview_parts.append(f"[Market Research]\n{market_out}")
+        if coaching_out := state.get("coaching"):
+            response = (
+                coaching_out.get("response", "") if isinstance(coaching_out, dict) else str(coaching_out)
+            )
+            if response:
+                preview_parts.append(f"[Coaching]\n{response}")
+        if app := state.get("application"):
+            preview_parts.append(f"[Application]\n{app}")
+        draft = "\n\n".join(preview_parts)
+
+    # Nothing to review → auto-accept (aggregate will handle empty state message)
+    if not draft.strip():
+        return {
+            "critic_retries": new_retries,
+            "critic_verdict": CriticVerdict(
+                grounded=True, issues=[], action="ACCEPT"
+            ).model_dump(),
+        }
+
     evidence: list[dict] = state.get("evidence") or []
     evidence_text = "\n".join(
         f"[{i + 1}] {chunk}" for i, chunk in enumerate(evidence)
