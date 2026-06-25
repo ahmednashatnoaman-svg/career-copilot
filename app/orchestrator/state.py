@@ -25,6 +25,14 @@ class CopilotState(TypedDict, total=False):
     user_message: str
     uploaded_doc_ids: list[str]
 
+    # --- input data fields (populated at run start) ---
+    resume_text: str          # Raw text of CV/resume
+    resume_filename: str      # Original filename
+    resume_file_bytes: bytes | None  # Raw bytes if needed by agents
+    github_username: str      # GitHub username for portfolio agent
+    github_token: str         # GitHub token (optional)
+    job_description: str      # Target job description (optional, for tailoring)
+
     # --- routing ---
     plan: list[str]          # ordered agent names to run
     next_agent: str | None
@@ -47,5 +55,5 @@ class CopilotState(TypedDict, total=False):
     # --- control ---
     critic_verdict: dict | None
     critic_retries: int
-    hitl_request: HitlRequest | None
+    hitl_request: dict | None  # stored as plain dict (Pydantic fails msgpack)
     final_answer: str | None
