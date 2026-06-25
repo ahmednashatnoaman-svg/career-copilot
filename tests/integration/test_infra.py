@@ -76,6 +76,37 @@ def test_alembic_upgrade_head_creates_tables() -> None:
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
 
 
+def test_longterm_remember_recall_persistence():
+    """remember + recall round-trips via PostgresStore across two separate store_cm opens.
+
+    This proves that facts are truly persisted (not just in-memory) because we
+    write in one context-manager session and read in a second, independent one.
+    """
+    import uuid
+
+    from app.memory.longterm import recall, remember
+
+    user_id = f"test_lt_{uuid.uuid4().hex[:8]}"
+
+    # --- Write in one context-manager session ---
+    remember(user_id, "career_goal", "Staff Engineer at a fintech")
+    remember(user_id, "preferred_country", "UAE")
+    remember(user_id, "salary_expectation", 300_000)
+
+    # --- Read in a completely separate context-manager session ---
+    facts = recall(user_id)
+
+    assert facts.get("career_goal") == "Staff Engineer at a fintech", (
+        f"Expected career_goal to be persisted, got: {facts}"
+    )
+    assert facts.get("preferred_country") == "UAE", (
+        f"Expected preferred_country to be persisted, got: {facts}"
+    )
+    assert facts.get("salary_expectation") == 300_000, (
+        f"Expected salary_expectation to be persisted, got: {facts}"
+    )
+
+
 def test_rag_store_per_user_isolation():
     """Upsert docs for two users; each user's query must not return the other's payloads."""
     from app.rag.store import ensure_collection, query, upsert_chunks
