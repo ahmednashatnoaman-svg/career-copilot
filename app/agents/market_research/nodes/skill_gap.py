@@ -159,7 +159,7 @@ def _write_reason(
     )
 
     try:
-        llm   = get_llm()
+        llm   = get_llm("fast")
         prompt = _REASON_PROMPT.format(
             skill         = skill,
             market        = market,
