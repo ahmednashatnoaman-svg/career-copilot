@@ -344,8 +344,9 @@ def trends_node(state: MarketAgentState) -> dict:
     all_trends: list[MarketTrend] = []
 
     queries: list[LaneQuery] = [
-        q for q in state.get("lane_queries", [])
-        if q.lane == "trends"
+        (LaneQuery(**q) if isinstance(q, dict) else q)
+        for q in state.get("lane_queries", [])
+        if (q.get("lane") if isinstance(q, dict) else q.lane) == "trends"
     ]
 
     if not queries:
@@ -354,8 +355,9 @@ def trends_node(state: MarketAgentState) -> dict:
 
     # User's skills used to expand deterministic matching
     user_skills: list[str] = []
-    if "input" in state and hasattr(state["input"], "skills"):
-        user_skills = state["input"].skills
+    inp = state.get("input")
+    if inp:
+        user_skills = inp.get("skills", []) if isinstance(inp, dict) else getattr(inp, "skills", [])
 
     for query in queries:
         cache_key = build_cache_key(
@@ -396,4 +398,4 @@ def trends_node(state: MarketAgentState) -> dict:
             f"mode={query.market_mode} → {len(trends)} trends"
         )
 
-    return {"trends": all_trends}
+    return {"trends": [t.model_dump(mode="json") for t in all_trends]}
