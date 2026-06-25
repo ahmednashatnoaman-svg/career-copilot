@@ -69,16 +69,19 @@ export async function startRun(
 
 /**
  * Resume a paused run after a human-in-the-loop decision.
- * POST /runs/{threadId}/resume  (json: { decision })
+ * POST /runs/{threadId}/resume  (json body IS the decision object)
+ *
+ * The backend reads the entire body as `decision: dict` and passes it directly
+ * to Command(resume=decision), so we must NOT nest it under a "decision" key.
  */
 export async function resumeRun(
   threadId: string,
-  decision: string
+  decision: Record<string, unknown>
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(threadId)}/resume`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify(decision),
   });
 
   await handleResponse<unknown>(res);
