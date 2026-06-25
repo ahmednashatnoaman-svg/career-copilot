@@ -21,6 +21,16 @@ services:
       QDRANT_URL: "http://qdrant:6333"
     ports: ["8000:8000"]
     depends_on: [postgres, qdrant]
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Containerfile
+    environment:
+      # NEXT_PUBLIC_API_BASE must be host-reachable: the browser runs outside the
+      # compose network, so it cannot use the service name "backend".
+      NEXT_PUBLIC_API_BASE: "http://localhost:8000"
+    ports: ["3000:3000"]
+    depends_on: [backend]
 volumes:
   pgdata:
   qdrantdata:
