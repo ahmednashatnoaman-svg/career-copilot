@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ApplicationPackage } from "@/lib/types";
-import { Eye, X } from "lucide-react";
+import { Eye, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -141,6 +141,24 @@ export function ApplicationRow({ application }: ApplicationRowProps) {
 
             {/* Footer */}
             <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-background px-6 py-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!application.cover_letter) return;
+                  const blob = new Blob([application.cover_letter], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `cover-letter-${application.company.toLowerCase().replace(/\s+/g, "-")}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="gap-2"
+                aria-label="Download application package"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowModal(false)}
