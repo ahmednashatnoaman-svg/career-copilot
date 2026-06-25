@@ -90,40 +90,51 @@ def _market_wrapper(state: CopilotState) -> dict:
 
 def _coaching_wrapper(state: CopilotState) -> dict:
     """Build a ChatRequest from CopilotState, invoke coaching graph, map output."""
+    import logging as _logging  # noqa: PLC0415
+    _log = _logging.getLogger(__name__)
+
     user_id: str = state.get("user_id") or "demo_user"
     thread_id: str = state.get("thread_id") or "demo_thread"
     message: str = state.get("user_message") or ""
 
-    request = ChatRequest(
-        user_id=user_id,
-        thread_id=thread_id,
-        message=message or "hello",
-    )
+    _empty_output: dict = {"coaching": {"response": "", "sub_intent": "", "next_action": "", "validation": {}}}
 
-    # Build a fresh (no-checkpointer) coaching graph for this invocation so
-    # that it does not try to connect to Postgres at graph-compile time.
-    # The supervisor's own checkpointer handles persistence at the outer level.
-    coaching_compiled = build_coaching_graph(checkpointer=None)
-    config = {"configurable": {"thread_id": f"{user_id}:{thread_id}"}}
-    coach_input = {
-        "user_id": request.user_id,
-        "thread_id": request.thread_id,
-        "message": request.message,
-        "mode": request.mode,
-        "profile": request.profile.model_dump(exclude_none=True),
-        "max_interview_questions": request.max_interview_questions,
-    }
-    result_state = coaching_compiled.invoke(coach_input, config=config)
+    try:
+        request = ChatRequest(
+            user_id=user_id,
+            thread_id=thread_id,
+            message=message or "hello",
+        )
 
-    coaching_output = {
-        "coaching": {
-            "response": result_state.get("response", ""),
-            "sub_intent": result_state.get("sub_intent", ""),
-            "next_action": result_state.get("next_action", ""),
-            "validation": result_state.get("validation", {}),
+        # Build a fresh (no-checkpointer) coaching graph for this invocation so
+        # that it does not try to connect to Postgres at graph-compile time.
+        coaching_compiled = build_coaching_graph(checkpointer=None)
+        config = {"configurable": {"thread_id": f"{user_id}:{thread_id}"}}
+        coach_input = {
+            "user_id": request.user_id,
+            "thread_id": request.thread_id,
+            "message": request.message,
+            "mode": request.mode,
+            "profile": request.profile.model_dump(exclude_none=True),
+            "max_interview_questions": request.max_interview_questions,
         }
-    }
-    return _advance_plan(state, coaching_output)
+        result_state = coaching_compiled.invoke(coach_input, config=config)
+
+        coaching_output = {
+            "coaching": {
+                "response": result_state.get("response", ""),
+                "sub_intent": result_state.get("sub_intent", ""),
+                "next_action": result_state.get("next_action", ""),
+                "validation": result_state.get("validation", {}),
+            }
+        }
+        return _advance_plan(state, coaching_output)
+
+    except Exception as exc:  # noqa: BLE001
+        # Coaching is best-effort: a DB error (e.g. pgvector not installed)
+        # must not block the application HITL flow.
+        _log.warning("coaching agent failed (%s) — advancing plan with empty response", exc)
+        return _advance_plan(state, _empty_output)
 
 
 def _matching_wrapper(state: CopilotState) -> dict:
@@ -296,6 +307,7 @@ def build_supervisor(checkpointer=None):
     _plan_agent_dispatch_map = {agent: agent for agent in _plan_agents} | {
         "critic": "critic",
         "application_send": "application_send",
+        "application": "application",
     }
 
     for agent_name in _plan_agents:
