@@ -17,6 +17,12 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        /* Display font: Fraunces — page titles, section headers */
+        display: ["var(--font-display)", "Georgia", "serif"],
+        /* Body/UI font: Geist */
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
