@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     google_api_key: str | None = None
 
+    # Azure OpenAI (AI Foundry endpoint — OpenAI-compatible)
+    azure_openai_endpoint: str | None = None
+    azure_openai_api_key: str | None = None
+    azure_openai_deployment_name: str = "gpt-4.1-mini"
+    azure_openai_embedding_endpoint: str | None = None
+    azure_openai_embedding_api_key: str | None = None
+    azure_openai_embedding_deployment_name: str = "text-embedding-3-small"
+
     # tools
     tavily_api_key: str | None = None
     adzuna_app_id: str | None = None
