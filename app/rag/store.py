@@ -73,18 +73,19 @@ def query(user_id: str, text: str, top_k: int = 6) -> list[dict]:
     )
 
     client = get_qdrant()
-    results = client.search(
+    response = client.query_points(
         collection_name=COLLECTION,
-        query_vector=query_vector,
+        query=query_vector,
         query_filter=user_filter,
         limit=top_k,
+        with_payload=True,
     )
 
     return [
         {
-            "text": hit.payload["text"],
-            "score": hit.score,
-            "doc_id": hit.payload["doc_id"],
+            "text": point.payload["text"],
+            "score": point.score,
+            "doc_id": point.payload["doc_id"],
         }
-        for hit in results
+        for point in response.points
     ]
