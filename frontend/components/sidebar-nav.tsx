@@ -9,6 +9,7 @@ import {
   GraduationCap,
   ClipboardList,
   Briefcase,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,12 @@ const navItems = [
     label: "Applications",
     description: "Track applications",
     icon: ClipboardList,
+  },
+  {
+    href: "/interviews",
+    label: "Interviews",
+    description: "Mock interview practice",
+    icon: Mic,
   },
 ];
 
