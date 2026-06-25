@@ -11,22 +11,34 @@ const LS_KEY = "career-copilot:onboarding";
 
 interface OnboardingStore {
   githubUsername: string;
+  github_username?: string;
   careerGoal: string;
+  doc_ids: string[];
+  resume_text: string;
+  github_token: string;
 }
 
 function loadStore(): OnboardingStore {
-  if (typeof window === "undefined") return { githubUsername: "", careerGoal: "" };
+  if (typeof window === "undefined") return { githubUsername: "", careerGoal: "", doc_ids: [], resume_text: "", github_token: "" };
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : { githubUsername: "", careerGoal: "" };
+    return raw ? JSON.parse(raw) : { githubUsername: "", careerGoal: "", doc_ids: [], resume_text: "", github_token: "" };
   } catch {
-    return { githubUsername: "", careerGoal: "" };
+    return { githubUsername: "", careerGoal: "", doc_ids: [], resume_text: "", github_token: "" };
   }
 }
 
 function saveStore(data: OnboardingStore) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(LS_KEY, JSON.stringify(data));
+  // Keep both camelCase and snake_case keys for compatibility
+  localStorage.setItem(LS_KEY, JSON.stringify({ ...data, github_username: data.githubUsername }));
+}
+
+function addDocId(docId: string) {
+  if (typeof window === "undefined") return;
+  const current = loadStore();
+  const updated = { ...current, doc_ids: [...(current.doc_ids || []), docId] };
+  saveStore(updated);
 }
 
 export default function OnboardingPage() {
@@ -43,11 +55,17 @@ export default function OnboardingPage() {
 
   // Persist on change
   useEffect(() => {
-    saveStore({ githubUsername, careerGoal });
+    const current = loadStore();
+    saveStore({ ...current, githubUsername, careerGoal });
   }, [githubUsername, careerGoal]);
 
+  const handleDocUploaded = (docId: string) => {
+    addDocId(docId);
+  };
+
   const handleStart = () => {
-    saveStore({ githubUsername, careerGoal });
+    const current = loadStore();
+    saveStore({ ...current, githubUsername, careerGoal });
     router.push("/copilot");
   };
 
@@ -83,7 +101,7 @@ export default function OnboardingPage() {
             Resume, certificates, portfolio pieces — anything you want the
             Copilot to know about.
           </p>
-          <UploadDropzone userId={USER_ID} />
+          <UploadDropzone userId={USER_ID} onDocUploaded={handleDocUploaded} />
         </section>
 
         {/* ── Section 2: Profile seed ── */}
