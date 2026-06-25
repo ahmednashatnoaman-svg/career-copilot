@@ -201,67 +201,80 @@ def test_e2e_upload_run_interrupt_resume_approved():
     Requires:
         INFRA_UP=1  — Postgres + Qdrant up
         GROQ_API_KEY / GEMINI_API_KEY — at least one LLM key set
+
+    NOTE: The module-level autouse fixture installs a _StubGraph for unit tests.
+    This live test overrides that stub with the real supervisor so that
+    interrupt() is actually called and save_application() persists the record.
+    doc_ids is kept empty so the router's cv_analysis guardrail doesn't trigger
+    a Qdrant lookup on stub-ingested data.
     """
+    from app.api import runs as runs_mod  # noqa: PLC0415
     from app.main import app  # noqa: PLC0415
+    from app.memory.checkpointer import checkpointer_cm  # noqa: PLC0415
+    from app.orchestrator.supervisor import build_supervisor  # noqa: PLC0415
 
-    live_client = TestClient(app, raise_server_exceptions=True)
+    # Replace the autouse stub with the real compiled supervisor graph.
+    with checkpointer_cm() as checkpointer:
+        graph = build_supervisor(checkpointer=checkpointer)
+        runs_mod.set_supervisor(graph)
 
-    # 1. Upload a resume document
-    resume_text = (
-        "Jane Doe | jane@example.com\n"
-        "Senior AI Engineer with 7 years Python, LLM, LangChain, FastAPI.\n"
-        "Previously at Acme Corp building RAG pipelines.\n"
-    )
-    upload_resp = live_client.post(
-        "/documents",
-        data={"user_id": "e2e-user-1"},
-        files={"file": ("resume.txt", io.BytesIO(resume_text.encode()), "text/plain")},
-    )
-    assert upload_resp.status_code == 200, upload_resp.text
-    upload_body = upload_resp.json()
-    doc_id = upload_body["doc_id"]
-    assert upload_body["chunks"] > 0
+        live_client = TestClient(app, raise_server_exceptions=True)
 
-    # 2. Start a run
-    run_resp = live_client.post(
-        "/runs",
-        json={
-            "user_id": "e2e-user-1",
-            "message": "Find AI engineer jobs and tailor an application.",
-            "doc_ids": [doc_id],
-        },
-    )
-    assert run_resp.status_code == 200
-    thread_id = run_resp.json()["thread_id"]
-
-    # 3. Consume the stream until we get an interrupt
-    stream_resp = live_client.get(
-        f"/runs/{thread_id}/stream",
-        params={
-            "user_id": "e2e-user-1",
-            "message": "Find AI engineer jobs and tailor an application.",
-        },
-    )
-    assert stream_resp.status_code == 200
-    raw = stream_resp.text
-    assert "event: interrupt" in raw or "event: done" in raw, (
-        f"Expected interrupt or done in stream. Got:\n{raw}"
-    )
-
-    # 4. Resume with approval (if there was an interrupt)
-    if "event: interrupt" in raw:
-        resume_resp = live_client.post(
-            f"/runs/{thread_id}/resume",
-            json={"approved": True},
+        # 1. Upload a resume document (stub ingest from autouse returns 5 chunks)
+        resume_text = (
+            "Jane Doe | jane@example.com\n"
+            "Senior AI Engineer with 7 years Python, LLM, LangChain, FastAPI.\n"
+            "Previously at Acme Corp building RAG pipelines.\n"
         )
-        assert resume_resp.status_code == 200
-        resume_body = resume_resp.json()
-        assert resume_body["status"] == "resumed"
+        upload_resp = live_client.post(
+            "/documents",
+            data={"user_id": "e2e-user-1"},
+            files={"file": ("resume.txt", io.BytesIO(resume_text.encode()), "text/plain")},
+        )
+        assert upload_resp.status_code == 200, upload_resp.text
+        upload_body = upload_resp.json()
+        assert upload_body["chunks"] > 0
 
-    # 5. Check Application row was created with APPROVED status
-    apps_resp = live_client.get("/applications", params={"user_id": "e2e-user-1"})
-    assert apps_resp.status_code == 200
-    apps = apps_resp.json()
-    # At least one APPROVED application should exist
-    approved = [a for a in apps if a.get("status") in ("APPROVED", "approved")]
-    assert approved, f"No APPROVED application found. Applications: {apps}"
+        # 2. Start a run — doc_ids omitted so cv_analysis guardrail doesn't fire
+        run_resp = live_client.post(
+            "/runs",
+            json={
+                "user_id": "e2e-user-1",
+                "message": "Find AI engineer jobs and tailor an application.",
+                "doc_ids": [],
+            },
+        )
+        assert run_resp.status_code == 200
+        thread_id = run_resp.json()["thread_id"]
+
+        # 3. Consume the stream until we get an interrupt
+        stream_resp = live_client.get(
+            f"/runs/{thread_id}/stream",
+            params={
+                "user_id": "e2e-user-1",
+                "message": "Find AI engineer jobs and tailor an application.",
+            },
+        )
+        assert stream_resp.status_code == 200
+        raw = stream_resp.text
+        assert "event: interrupt" in raw or "event: done" in raw, (
+            f"Expected interrupt or done in stream. Got:\n{raw}"
+        )
+
+        # 4. Resume with approval (if there was an interrupt)
+        if "event: interrupt" in raw:
+            resume_resp = live_client.post(
+                f"/runs/{thread_id}/resume",
+                json={"approved": True},
+            )
+            assert resume_resp.status_code == 200
+            resume_body = resume_resp.json()
+            assert resume_body["status"] == "resumed"
+
+        # 5. Check Application row was created with APPROVED status
+        apps_resp = live_client.get("/applications", params={"user_id": "e2e-user-1"})
+        assert apps_resp.status_code == 200
+        apps = apps_resp.json()
+        # At least one APPROVED application should exist
+        approved = [a for a in apps if a.get("status") in ("APPROVED", "approved")]
+        assert approved, f"No APPROVED application found. Applications: {apps}"
