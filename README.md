@@ -12,11 +12,11 @@ Built with **LangGraph** (orchestration + durable state), **FastAPI**, a **100% 
 | Phase | Scope | State |
 |---|---|---|
 | **1 — Foundation** | Monorepo unification, config/LLM/embeddings, Postgres+Qdrant, FastAPI, 3 agents ported as subgraphs, LangSmith, Containerfile | ✅ Complete |
-| **2 — Orchestration** | `CopilotState`, Supervisor + router, RAG pipeline, Critic loop, durable HITL interrupt/resume | 🚧 In progress |
-| **3 — Agents & API** | Matching, Portfolio/GitHub, Career-Planning, Application agents; `JobSource` adapters; SQLAlchemy/Alembic; SSE + HITL endpoints | ⬜ Planned |
-| **4 — Frontend & Release** | Next.js dashboard + approval modals, long-term memory, CI, free-tier hardening, full Podman compose | ⬜ Planned |
+| **2 — Orchestration** | `CopilotState`, Supervisor + router, RAG pipeline, Critic loop, durable HITL interrupt/resume | ✅ Complete |
+| **3 — Agents & API** | Matching, Portfolio/GitHub, Career-Planning, Application agents; `JobSource` adapters; SQLAlchemy/Alembic; SSE + HITL endpoints | ✅ Complete |
+| **4 — Frontend & Release** | Next.js dashboard + approval modals, long-term memory, CI, free-tier hardening, full Podman compose | ✅ Complete |
 
-See [`docs/specs/`](docs/specs/) for the design spec and [`docs/plans/`](docs/plans/) for the four bite-sized implementation plans.
+See [`docs/specs/`](docs/specs/) for the design spec and [`docs/plans/`](docs/plans/) for the four implementation plans.
 
 ## Architecture
 
@@ -35,9 +35,20 @@ User → FastAPI → Supervisor (LangGraph)
 ```bash
 uv sync                                            # install deps (creates .venv)
 cp .env.example .env                               # fill in free keys (Groq, Gemini, Tavily, LangSmith)
-podman-compose -f infra/compose.yaml up -d         # Postgres + Qdrant
-uv run pytest                                      # unit + smoke (infra tests skip without INFRA_UP=1)
+podman-compose -f infra/compose.yaml up -d         # Postgres + Qdrant + backend + frontend
+# API at http://localhost:8000/health
+# Dashboard at http://localhost:3000
+```
+
+To run the backend locally (dev mode, without containers):
+```bash
 uv run uvicorn app.main:app --reload               # API at http://localhost:8000/health
+uv run pytest                                      # unit + smoke (infra tests skip without INFRA_UP=1)
+```
+
+To run the demo end-to-end:
+```bash
+bash scripts/demo.sh                               # requires stack up + keys in .env
 ```
 
 Required free API keys (`.env`): `GROQ_API_KEY`, `GOOGLE_API_KEY`, `TAVILY_API_KEY`, `LANGCHAIN_API_KEY` (+ `ADZUNA_APP_ID/KEY`, `GITHUB_TOKEN` for job sourcing & portfolio analysis). Postgres, Qdrant, and embeddings are keyless.
