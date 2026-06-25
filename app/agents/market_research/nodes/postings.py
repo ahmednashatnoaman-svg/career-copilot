@@ -143,8 +143,9 @@ def postings_node(state: MarketAgentState) -> dict:
     all_postings: list[JobPosting] = []
 
     queries: list[LaneQuery] = [
-        q for q in state.get("lane_queries", [])
-        if q.lane == "postings"
+        (LaneQuery(**q) if isinstance(q, dict) else q)
+        for q in state.get("lane_queries", [])
+        if (q.get("lane") if isinstance(q, dict) else q.lane) == "postings"
     ]
 
     if not queries:
@@ -191,4 +192,4 @@ def postings_node(state: MarketAgentState) -> dict:
             f"mode={query.market_mode} → {len(postings)} postings"
         )
 
-    return {"postings": all_postings}
+    return {"postings": [p.model_dump(mode="json") for p in all_postings]}
