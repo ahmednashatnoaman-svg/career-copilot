@@ -59,7 +59,9 @@ def test_alembic_upgrade_head_creates_tables() -> None:
 
     # Verify tables exist
     settings = get_settings()
-    engine = create_engine(settings.database_url)
+    from app.services.session import sqlalchemy_url  # noqa: PLC0415
+
+    engine = create_engine(sqlalchemy_url(settings.database_url))
     with engine.connect() as conn:
         inspector = inspect(conn)
         existing_tables = set(inspector.get_table_names())
@@ -69,7 +71,7 @@ def test_alembic_upgrade_head_creates_tables() -> None:
     assert not missing, f"Missing tables after migration: {missing}"
 
     # Cleanup: drop and recreate schema for test isolation
-    engine = create_engine(settings.database_url)
+    engine = create_engine(sqlalchemy_url(settings.database_url))
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
 
