@@ -18,6 +18,23 @@ export interface RankedMatch {
   score: number;
   reasons: string[];
   url?: string;
+  snippet?: string;
+}
+
+export interface InterviewSession {
+  session_id: string;
+  question?: string;
+  feedback?: string;
+  question_number: number;
+  status: 'active' | 'completed';
+  is_complete?: boolean;
+  messages?: Array<{ role: string; content: string }>;
+}
+
+export interface CoachingMessage {
+  thread_id: string;
+  response: string;
+  mode: string;
 }
 
 export interface ApplicationPackage {
