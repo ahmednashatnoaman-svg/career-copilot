@@ -24,6 +24,8 @@ COPY . .
 # Pass build-time API base; can be overridden at runtime via env
 ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+# Enable standalone output for Docker self-hosting
+ENV NEXT_OUTPUT=standalone
 
 RUN npm run build
 
