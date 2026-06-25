@@ -9,6 +9,7 @@ Exposes:
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from langgraph.types import interrupt
 
@@ -16,62 +17,48 @@ from app.orchestrator.state import CopilotState, HitlRequest
 
 
 def request_approval(kind: str, payload: dict, prompt: str) -> Any:
-    """Wrap LangGraph ``interrupt`` with a structured payload.
-
-    Builds a dict matching the ``HitlRequest`` schema, suspends the graph via
-    ``interrupt``, and returns whatever value the human resumes with.
-
-    Args:
-        kind:    The category of approval being requested.
-        payload: Arbitrary context data to show the human reviewer.
-        prompt:  Human-readable instruction / question.
-
-    Returns:
-        The resume value provided by the human (e.g. ``{"approved": True}``).
-    """
+    """Wrap LangGraph ``interrupt`` with a structured payload."""
     return interrupt({"kind": kind, "payload": payload, "prompt": prompt})
 
 
 def application_send_node(state: CopilotState) -> dict:
     """LangGraph node: gate application submission with a human approval step.
 
-    Reads ``state["application"]`` (gracefully handles missing / empty dict),
-    builds a ``HitlRequest``, calls ``request_approval``, then sets
-    ``application["status"]`` to ``"APPROVED"`` or ``"REJECTED"`` based on
-    the human's resume payload.
-
     Returns a partial state dict containing ``application`` and
-    ``hitl_request``.
+    ``hitl_request`` (as a plain dict — Pydantic models aren't
+    msgpack-serializable by the Postgres checkpointer).
     """
+    from app.api.applications import save_application  # noqa: PLC0415 (avoid circular at module level)
+
     application: dict = dict(state.get("application") or {})
+    thread_id = state.get("thread_id", "")
+    user_id = state.get("user_id", "")
 
-    payload = {
-        "job_title": application.get("job_title"),
-        "company": application.get("company"),
-        "cover_letter": application.get("cover_letter"),
+    hitl_data = {
+        "hitl_id": str(uuid4()),
+        "thread_id": thread_id,
+        "kind": "application_send",
+        "question": "Review and approve this job application before sending",
+        "context": {"application_package": application},
     }
-    prompt = (
-        "Please review the application below and approve or reject it.\n"
-        f"Company: {payload['company']}\n"
-        f"Role: {payload['job_title']}"
-    )
 
-    hitl_req = HitlRequest(
-        kind="application_send",
-        payload=payload,
-        prompt=prompt,
-    )
-
-    resume = request_approval(
-        kind=hitl_req.kind,
-        payload=hitl_req.payload,
-        prompt=hitl_req.prompt,
-    )
+    resume = interrupt({"hitl_request": hitl_data})
 
     approved: bool = bool((resume or {}).get("approved", False))
     application["status"] = "APPROVED" if approved else "REJECTED"
 
+    # Persist the application so GET /applications returns it immediately.
+    if user_id:
+        save_application(user_id, application)
+
+    # Store hitl_request as a plain dict — Pydantic BaseModel fails msgpack.
+    hitl_req_dict: dict = {
+        "kind": "application_send",
+        "payload": application,
+        "prompt": "Review and approve this job application before sending",
+    }
+
     return {
         "application": application,
-        "hitl_request": hitl_req,
+        "hitl_request": hitl_req_dict,
     }
