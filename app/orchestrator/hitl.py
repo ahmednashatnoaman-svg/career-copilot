@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from langgraph.types import interrupt
 
-from app.orchestrator.state import CopilotState, HitlRequest
+from app.orchestrator.state import CopilotState
 
 
 def request_approval(kind: str, payload: dict, prompt: str) -> Any:
@@ -28,7 +28,9 @@ def application_send_node(state: CopilotState) -> dict:
     ``hitl_request`` (as a plain dict — Pydantic models aren't
     msgpack-serializable by the Postgres checkpointer).
     """
-    from app.api.applications import save_application  # noqa: PLC0415 (avoid circular at module level)
+    from app.api.applications import (
+        save_application,  # noqa: PLC0415 (avoid circular at module level)
+    )
 
     application: dict = dict(state.get("application") or {})
     thread_id = state.get("thread_id", "")
