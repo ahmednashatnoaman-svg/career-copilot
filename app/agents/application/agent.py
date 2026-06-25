@@ -36,7 +36,7 @@ def application_node(state: CopilotState) -> dict:
                 cover_letter="",
                 email="",
                 status="DRAFT",
-            )
+            ).model_dump(mode="json")
         }
 
     # Extract resume text from cv_analysis
@@ -69,4 +69,4 @@ def application_node(state: CopilotState) -> dict:
         status="DRAFT",
     )
 
-    return {"application": app_package}
+    return {"application": app_package.model_dump(mode="json")}
