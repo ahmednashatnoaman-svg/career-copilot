@@ -6,3 +6,5 @@ __pycache__/
 .ruff_cache/
 data/
 .DS_Store
+app/agents/cache.json
+production-plan.md
