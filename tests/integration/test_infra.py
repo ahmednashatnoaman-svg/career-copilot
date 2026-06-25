@@ -45,6 +45,15 @@ def test_alembic_upgrade_head_creates_tables() -> None:
     from sqlalchemy import create_engine, inspect, text
 
     from app.core.config import get_settings
+    from app.services.session import sqlalchemy_url  # noqa: PLC0415
+
+    # Reset schema first so prior tests (e.g. coaching ensure_schema) don't leave
+    # conflicting tables that block the migration.
+    _settings = get_settings()
+    _engine_pre = create_engine(sqlalchemy_url(_settings.database_url))
+    with _engine_pre.begin() as _conn:
+        _conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+    _engine_pre.dispose()
 
     # Run the migration
     result = subprocess.run(  # noqa: S603
@@ -58,10 +67,7 @@ def test_alembic_upgrade_head_creates_tables() -> None:
     )
 
     # Verify tables exist
-    settings = get_settings()
-    from app.services.session import sqlalchemy_url  # noqa: PLC0415
-
-    engine = create_engine(sqlalchemy_url(settings.database_url))
+    engine = create_engine(sqlalchemy_url(_settings.database_url))
     with engine.connect() as conn:
         inspector = inspect(conn)
         existing_tables = set(inspector.get_table_names())
@@ -71,7 +77,7 @@ def test_alembic_upgrade_head_creates_tables() -> None:
     assert not missing, f"Missing tables after migration: {missing}"
 
     # Cleanup: drop and recreate schema for test isolation
-    engine = create_engine(sqlalchemy_url(settings.database_url))
+    engine = create_engine(sqlalchemy_url(_settings.database_url))
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
 
