@@ -140,11 +140,14 @@ def validator_node(state: MarketAgentState) -> dict:
     """
     logger.info("[validator] starting validation and consolidation")
 
-    # --- 1. Serialize to dicts (mode="json" handles HttpUrl → str safely) ---
-    postings_dicts = [p.model_dump(mode="json") for p in state.get("postings",   [])]
-    salaries_dicts = [s.model_dump(mode="json") for s in state.get("salaries",   [])]
-    trends_dicts   = [t.model_dump(mode="json") for t in state.get("trends",     [])]
-    gaps_dicts     = [g.model_dump(mode="json") for g in state.get("skill_gaps", [])]
+    # --- 1. Normalize to dicts (items may already be dicts if nodes ran first) ---
+    def _to_dict(item: object) -> dict:
+        return item.model_dump(mode="json") if hasattr(item, "model_dump") else dict(item)  # type: ignore[arg-type]
+
+    postings_dicts = [_to_dict(p) for p in state.get("postings",   [])]
+    salaries_dicts = [_to_dict(s) for s in state.get("salaries",   [])]
+    trends_dicts   = [_to_dict(t) for t in state.get("trends",     [])]
+    gaps_dicts     = [_to_dict(g) for g in state.get("skill_gaps", [])]
 
     # --- 2. Source validation ---
     # Skill gaps are derived (no source URL) — skip source check for them
@@ -191,4 +194,4 @@ def validator_node(state: MarketAgentState) -> dict:
         f"{len(final_gaps)} skill gaps"
     )
 
-    return {"validated_output": validated_output}
+    return {"validated_output": validated_output.model_dump(mode="json")}
