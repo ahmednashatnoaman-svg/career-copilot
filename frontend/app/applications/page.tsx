@@ -43,6 +43,26 @@ export default function ApplicationsPage() {
     router.push("/copilot");
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <>
+        <Header title="Applications" subtitle="Track and manage your job applications" />
+        <main className="flex-1 overflow-y-auto px-6 py-8">
+          <div className="max-w-3xl mx-auto space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="card-warm px-4 py-4 animate-pulse flex items-center gap-4">
+                <div className="h-4 w-2/5 bg-muted-foreground/10 rounded" />
+                <div className="h-4 w-1/5 bg-muted-foreground/10 rounded" />
+                <div className="ml-auto h-4 w-1/6 bg-muted-foreground/10 rounded" />
+              </div>
+            ))}
+          </div>
+        </main>
+      </>
+    );
+  }
+
   // Empty state
   if (!loading && applications.length === 0 && !error) {
     return (
