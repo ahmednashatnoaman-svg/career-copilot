@@ -91,7 +91,9 @@ class TestProviderFallback:
         """When only primary key is set, no fallback wrapping occurs."""
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "groq-key")
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        # setenv("", ...) overrides .env file value; delenv does not
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
@@ -133,7 +135,8 @@ class TestExistingProviderRegression:
     def test_get_llm_groq_reason_model_name(self, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
@@ -147,7 +150,8 @@ class TestExistingProviderRegression:
     def test_get_llm_fast_picks_small(self, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
