@@ -1,34 +1,61 @@
-# Project Status & Next-Session Handoff
+# Project Status
 
-**As of:** end of Plan 3 · branch `feat/foundation-monorepo` · 84 commits · **129 passed, 7 skipped** (skips = infra-gated live tests), ruff clean.
+**As of:** Plan 4 complete · branch `feat/foundation-monorepo` · **147 passed, 8 skipped** (infra-gated), ruff clean.
 
 ## ✅ Complete
 
 | Phase | What shipped | Tests |
 |---|---|---|
-| **Plan 1 — Foundation** | Unified monorepo, `core/config`, `llm/provider` (Groq/Gemini + `max_tokens`), `rag/embeddings` (fastembed BGE), Postgres checkpointer + Store, Qdrant client, FastAPI `/health`, LangSmith tracing, Containerfile + `infra/compose.yaml`; **3 agents ported** (cv_analysis, market_research, coaching) | all green |
-| **Plan 2 — Orchestration** | `CopilotState`, RAG pipeline (chunking→ingest→Qdrant→retriever→RAG agent), Supervisor graph + router, Critic bounded loop, HITL `interrupt`/resume gate | all green (live e2e P2T10 deferred) |
-| **Plan 3 — Agents + API** | `JobSource` adapters (Adzuna API + Tavily fallback + LinkedIn/Glassdoor public-page), 4 new agents (matching, portfolio/github, career_planning, application-gen), all registered in the Supervisor; SQLAlchemy models + Alembic `0001_init`; FastAPI endpoints (`/documents`, `/runs`, `/runs/{id}/stream` SSE, `/runs/{id}/resume`, `/applications`) | all green (live e2e deferred) |
+| **Plan 1 — Foundation** | Unified monorepo, `core/config`, `llm/provider` (Groq/Gemini/Azure + `max_tokens`), `rag/embeddings` (fastembed BGE), Postgres checkpointer + Store, Qdrant client, FastAPI `/health`, LangSmith tracing, Containerfile + `infra/compose.yaml`; **3 agents ported** (cv_analysis, market_research, coaching) | ✅ all green |
+| **Plan 2 — Orchestration** | `CopilotState`, RAG pipeline (chunking→ingest→Qdrant→retriever→RAG agent), Supervisor graph + router, Critic bounded loop, HITL `interrupt`/resume gate | ✅ all green |
+| **Plan 3 — Agents + API** | `JobSource` adapters (Adzuna API + Tavily fallback + LinkedIn/Glassdoor public-page), 4 new agents (matching, portfolio/github, career_planning, application-gen), all registered in the Supervisor; SQLAlchemy models + Alembic `0001_init`; FastAPI endpoints (`/documents`, `/runs`, `/runs/{id}/stream` SSE, `/runs/{id}/resume`, `/applications`) | ✅ all green |
+| **Plan 4 — Frontend & Release** | Next.js 15.3 dashboard (6 pages: onboarding, copilot, matches, coaching, applications, root); HITL `ApprovalModal` (focus-trap, edit mode); long-term memory via `PostgresStore`; free-tier hardening (cache + fallbacks + fast-model routing); GitHub Actions CI (3 jobs); Podman compose; Azure OpenAI provider; HITL contract aligned | ✅ all green |
 
-Each task was implemented TDD-first and reviewed by a second agent (spec + quality), with fixes applied for every Critical/Important finding.
+## Post-Plan 4 fixes applied
 
-## ⬜ Next (Plan 4 — Frontend & Release)
-See [`docs/plans/2026-06-24-frontend-productionization.md`](plans/2026-06-24-frontend-productionization.md): Next.js dashboard (upload, streaming copilot chat, matches, coaching, applications, **HITL approval modals**), long-term memory via `PostgresStore`, free-tier hardening (backoff + cache + fast-model routing), and the final whole-branch review.
+| Fix | File | Commit |
+|---|---|---|
+| Real API keys written to `.env` (gitignored) | `.env` | — |
+| Azure OpenAI added as third provider | `app/llm/provider.py`, `app/core/config.py`, `pyproject.toml` | — |
+| HITL contract: `resumeRun` sent `{decision: "..."}` (double-wrap) instead of flat `{approved: bool}` | `frontend/lib/api.ts`, `frontend/app/copilot/page.tsx` | — |
+| Hardening tests: `monkeypatch.delenv` doesn't override `.env` file → changed to `setenv("")` | `tests/test_llm_hardening.py` | — |
 
-## 🔧 Deferred infra pass (batch — needs a healthy Podman)
-The earlier disk-full event corrupted the Podman VM's overlay storage. To unblock live validation:
-1. Fix Podman (`podman system reset` — **global**, wipes all images/containers/volumes; our volumes are empty test DBs) or recreate the machine.
-2. `podman-compose -f infra/compose.yaml up -d` (Postgres + Qdrant).
-3. Run the **7 infra-gated tests** with `INFRA_UP=1` (RAG isolation, checkpointer round-trip, Alembic upgrade, supervisor live run, **P2T10 HITL-survives-restart**, API e2e).
-4. `podman build -f backend/Containerfile -t career-copilot-backend .`.
+## ⚠️ Known limitations
 
-## ⚠️ Known limitations to address next session
-- **SSE is buffered, not incremental** (`app/api/runs.py`): the portfolio node uses an `asyncio.run()` bridge, so the graph is run sync-in-threadpool and frames are collected before flushing. Fix: make the portfolio GitHub client **sync** (drop `httpx.AsyncClient`), then register `portfolio_node` as a normal sync node and stream incrementally (or use a queue bridge).
-- **P2T10** (HITL pause survives a container restart) is written but unrun — needs live Postgres.
-- **Cross-agent enrichment** in the supervisor wrappers is minimal (e.g., market wrapper uses empty skills; coaching gets an empty profile) — wire CV/profile state into downstream agents.
-- Minor test-polish items are recorded in commit history / review reports.
+- **SSE is buffered, not incremental** — `portfolio_node` is `async def`, so LangGraph runs an asyncio bridge in the threadpool, buffering all frames before flushing. Fix: convert `github_client.py` + `portfolio_node` to synchronous (requires updating 5 tests).
+- **8 infra-gated tests** require a live Postgres + Qdrant stack (`INFRA_UP=1`). Run with `podman-compose -f infra/compose.yaml up -d`.
+- **HITL e2e not yet run with real keys** — the contract fix above aligns backend and frontend; needs a live run to validate.
+- **Google API key format** — the provided key (`AQ.Ab8RN6KSTmmWz...`) is not a standard Gemini Studio key; Gemini fallback will gracefully degrade to Azure/Groq.
 
-## How to resume
-- Work continues on `feat/foundation-monorepo`; PRs are open on both repos (personal `#1`, career-agent `#1`) and update on push.
-- Plan 4 briefs can be regenerated from `docs/plans/2026-06-24-frontend-productionization.md`.
-- Required free keys for live runs: `GROQ_API_KEY`, `GOOGLE_API_KEY`, `TAVILY_API_KEY`, `LANGCHAIN_API_KEY` (+ `ADZUNA_APP_ID/KEY`, `GITHUB_TOKEN`).
+## How to run
+
+```bash
+# Backend only (dev mode)
+cp .env.example .env  # or edit existing .env with real keys
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+
+# Full stack
+podman-compose -f infra/compose.yaml up -d
+# API at http://localhost:8000  · Dashboard at http://localhost:3000
+
+# Tests
+uv run pytest                           # 147 unit + smoke (8 infra-gated skipped)
+INFRA_UP=1 uv run pytest                # all 155 including live DB/Qdrant
+
+# CI
+git push feat/foundation-monorepo       # triggers GitHub Actions (3 jobs)
+```
+
+## Required keys (`.env`)
+
+| Key | Source | Required |
+|---|---|---|
+| `GROQ_API_KEY` | console.groq.com | Yes (primary LLM) |
+| `GOOGLE_API_KEY` | aistudio.google.com | Optional (Gemini fallback) |
+| `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` | Azure AI Foundry | Optional (third provider) |
+| `TAVILY_API_KEY` | tavily.com | Yes (web search) |
+| `LANGCHAIN_API_KEY` | smith.langchain.com | Optional (tracing) |
+| `ADZUNA_APP_ID` + `ADZUNA_APP_KEY` | developer.adzuna.com | Optional (job search) |
+| `GITHUB_TOKEN` | github.com/settings/tokens | Optional (portfolio agent) |
