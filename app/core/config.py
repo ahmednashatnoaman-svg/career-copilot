@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://career:career@127.0.0.1:5433/career"
     qdrant_url: str = "http://127.0.0.1:6333"
 
+    # Supabase
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+
+    # deployment
+    render_external_url: str | None = None
+    frontend_url: str = ""
+
     # tracing
     langchain_project: str = "career-copilot"
 
