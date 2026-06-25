@@ -191,7 +191,7 @@ def _llm_parse(text: str) -> SalaryExtraction:
     Never raises — returns empty extraction on any failure.
     """
     try:
-        llm = get_llm()
+        llm = get_llm("fast")
         structured = llm.with_structured_output(SalaryExtraction)
         result = structured.invoke(
             _SALARY_EXTRACTION_PROMPT.format(text=text[:800])  # cap tokens
