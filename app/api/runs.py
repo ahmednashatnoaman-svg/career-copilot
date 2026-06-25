@@ -15,10 +15,66 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 # ---------------------------------------------------------------------------
-# In-memory run config store — keyed by thread_id
+# In-memory fallback — used when Supabase is not configured (e.g. local dev
+# without .env, or integration tests).  Production always uses Supabase.
 # ---------------------------------------------------------------------------
 
 _run_configs: dict[str, dict] = {}
+
+
+def _save_run_config(thread_id: str, config: dict) -> None:
+    """Persist run config: Supabase first, fall back to in-memory."""
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is not None:
+        try:
+            db.table("runs").upsert(
+                {
+                    "thread_id": thread_id,
+                    "user_id": config.get("user_id", "anonymous"),
+                    "status": "running",
+                    "message": config.get("message", ""),
+                    "doc_ids": config.get("doc_ids", []),
+                }
+            ).execute()
+            # Store full config payload in memory for the same request lifetime
+            # so the subsequent SSE call on the same worker is fast.
+            _run_configs[thread_id] = config
+            return
+        except Exception:  # noqa: BLE001
+            pass  # fall through to in-memory
+    _run_configs[thread_id] = config
+
+
+def _load_run_config(thread_id: str) -> dict:
+    """Load run config: check in-memory first, then Supabase."""
+    if thread_id in _run_configs:
+        return _run_configs[thread_id]
+
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is not None:
+        try:
+            result = (
+                db.table("runs").select("*").eq("thread_id", thread_id).single().execute()
+            )
+            if result.data:
+                config = {
+                    "user_id": result.data.get("user_id", ""),
+                    "message": result.data.get("message", ""),
+                    "doc_ids": result.data.get("doc_ids") or [],
+                    "resume_text": result.data.get("resume_text", ""),
+                    "github_username": result.data.get("github_username", ""),
+                    "github_token": result.data.get("github_token", ""),
+                    "job_description": result.data.get("job_description", ""),
+                }
+                _run_configs[thread_id] = config
+                return config
+        except Exception:  # noqa: BLE001
+            pass
+    return {}
 
 
 class RunRequest(BaseModel):
@@ -73,24 +129,15 @@ def _stream_graph(
     initial_state: dict,
     config: dict,
 ) -> Generator[str, None, None]:
-    """Iterate graph.stream() synchronously and yield SSE frames.
-
-    Runs inside run_in_threadpool so it must NOT be async.
-    The graph is always called synchronously to avoid the asyncio.run() bridge
-    deadlock inside portfolio_node (which itself calls asyncio.run).
-    """
+    """Iterate graph.stream() synchronously and yield SSE frames."""
     try:
         for chunk in graph.stream(initial_state, config=config, stream_mode="updates"):
-            # chunk is {node_name: state_delta}
             for node_name, state_delta in chunk.items():
-                # Detect interrupt / HITL — LangGraph yields {"__interrupt__": tuple[Interrupt]}
-                # or embeds "__interrupt__" inside the state delta dict.
                 if node_name == "__interrupt__":
-                    # state_delta is a tuple of Interrupt namedtuples; extract .value from each
                     raw = state_delta if hasattr(state_delta, "__iter__") else [state_delta]
                     interrupt_data = [getattr(i, "value", str(i)) for i in raw]
                     yield _sse_frame("interrupt", {"hitl_request": interrupt_data})
-                    return  # suspend here; resume via POST /resume
+                    return
                 elif isinstance(state_delta, dict) and "__interrupt__" in state_delta:
                     yield _sse_frame("interrupt", {"hitl_request": state_delta["__interrupt__"]})
                     return
@@ -108,8 +155,6 @@ def _stream_graph_with_interrupt(
     config: dict,
 ) -> Generator[str, None, None]:
     """Wrap _stream_graph and catch LangGraph GraphInterrupt exceptions."""
-    # LangGraph raises GraphInterrupt when interrupt() is called inside a node.
-    # We catch it here to emit a structured SSE interrupt frame.
     try:
         from langgraph.errors import GraphInterrupt
         _GraphInterrupt = GraphInterrupt
@@ -120,11 +165,8 @@ def _stream_graph_with_interrupt(
         yield from _stream_graph(graph, initial_state, config)
     except Exception as exc:  # noqa: BLE001
         if _GraphInterrupt is not None and isinstance(exc, _GraphInterrupt):
-            # exc.args[0] is a tuple of Interrupt objects
             interrupts = exc.args[0] if exc.args else ()
-            hitl_data = [
-                getattr(i, "value", str(i)) for i in (interrupts or [])
-            ]
+            hitl_data = [getattr(i, "value", str(i)) for i in (interrupts or [])]
             yield _sse_frame("interrupt", {"hitl_request": hitl_data})
         else:
             yield _sse_frame("error", {"detail": str(exc)})
@@ -138,16 +180,12 @@ def _stream_graph_with_interrupt(
 
 @router.post("")
 async def create_run(body: RunRequest):
-    """Start a new supervisor run for a user.
-
-    Returns:
-        JSON with ``run_id`` (str) and ``thread_id`` (str).
-    """
+    """Start a new supervisor run. Persists config to Supabase so any worker
+    can hydrate the SSE stream from the same source of truth."""
     thread_id = str(uuid.uuid4())
     run_id = str(uuid.uuid4())
 
-    # Store run config keyed by thread_id so stream_run can look it up.
-    _run_configs[thread_id] = {
+    config = {
         "user_id": body.user_id,
         "message": body.message,
         "doc_ids": body.doc_ids,
@@ -156,6 +194,7 @@ async def create_run(body: RunRequest):
         "github_token": body.github_token,
         "job_description": body.job_description,
     }
+    _save_run_config(thread_id, config)
 
     return {"run_id": run_id, "thread_id": thread_id}
 
@@ -173,26 +212,12 @@ async def stream_run(
 ):
     """Stream supervisor execution as SSE.
 
-    Query params: ``user_id``, ``message`` (optional — config from POST /runs is preferred).
-
-    Emits SSE frames::
-
-        event: node
-        data: {"node": "<name>", "data": {...}}
-
-        event: interrupt
-        data: {"hitl_request": {...}}
-
-        event: done
-        data: {}
-
-    NOTE: The graph is invoked via run_in_threadpool to avoid deadlock with
-    the asyncio.run() bridge inside portfolio_node.
+    Loads run config from Supabase (falls back to in-memory) so the stream
+    works correctly in multi-worker or post-restart scenarios.
     """
     graph = _require_supervisor()
 
-    # Look up run config stored during POST /runs
-    config_data = _run_configs.get(thread_id, {})
+    config_data = _load_run_config(thread_id)
 
     initial_state: dict = {
         "user_id": user_id,
@@ -207,8 +232,6 @@ async def stream_run(
     config = {"configurable": {"thread_id": thread_id}}
 
     async def _generate():
-        # We collect frames in a threadpool to keep the sync graph
-        # off the main event loop, then yield them to the ASGI client.
         frames: list[str] = await run_in_threadpool(
             lambda: list(_stream_graph_with_interrupt(graph, initial_state, config))
         )
@@ -237,10 +260,7 @@ async def resume_run(
 ):
     """Resume a suspended run with a HITL decision.
 
-    Body: any dict, e.g. ``{"approved": true}``.
-
-    Returns:
-        JSON with ``status`` and collected ``frames`` (SSE events) as a list.
+    Body must be exactly the shape the HITL node expects: ``{"approved": true}``.
     """
     from langgraph.types import Command  # noqa: PLC0415
 
