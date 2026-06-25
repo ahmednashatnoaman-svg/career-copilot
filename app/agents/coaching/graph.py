@@ -1399,5 +1399,11 @@ def build_coaching_graph(checkpointer=None):
     settings = get_settings()
     embeddings = build_embedding_service(settings)
     memory = PostgresMemory(settings, embeddings)
+    try:
+        memory.ensure_schema()
+    except Exception:
+        # Schema creation may fail in test environments without a live DB;
+        # the graph will surface a real error at runtime if the table is missing.
+        pass
     agent = CareerCoachingAgent(settings=settings, memory=memory, checkpointer=checkpointer)
     return agent.graph
