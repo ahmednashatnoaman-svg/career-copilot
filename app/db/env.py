@@ -9,6 +9,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.models.db import Base  # noqa: F401 — registers all models
+from app.services.session import sqlalchemy_url
 
 # ---------------------------------------------------------------------------
 # Alembic Config object (access to alembic.ini values)
@@ -16,9 +17,10 @@ from app.models.db import Base  # noqa: F401 — registers all models
 
 config = context.config
 
-# Inject our database URL from settings (overrides alembic.ini placeholder)
+# Inject our database URL from settings (overrides alembic.ini placeholder).
+# Use postgresql+psycopg:// so SQLAlchemy selects the psycopg3 driver.
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", sqlalchemy_url(settings.database_url))
 
 # Interpret the config file for Python logging if present
 if config.config_file_name is not None:
