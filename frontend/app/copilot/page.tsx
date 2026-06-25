@@ -100,7 +100,13 @@ export default function CopilotPage() {
 
     try {
       const userId = getDemoUserId();
-      const { thread_id } = await startRun(userId, message);
+      const storedOnboarding = localStorage.getItem('career-copilot:onboarding')
+      const onboarding = storedOnboarding ? JSON.parse(storedOnboarding) : {}
+      const docIds: string[] = onboarding.doc_ids || onboarding.docIds || []
+      const resumeText: string = onboarding.resume_text || onboarding.resumeText || ''
+      const githubUsername: string = onboarding.github_username || onboarding.githubUsername || ''
+      const githubToken: string = onboarding.github_token || onboarding.githubToken || ''
+      const { thread_id } = await startRun(userId, message, docIds, resumeText, githubUsername, githubToken);
       setThreadId(thread_id);
       start(thread_id, { userId, message });
     } catch (err) {
