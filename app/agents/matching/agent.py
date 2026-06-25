@@ -125,4 +125,14 @@ def matching_node(state: CopilotState) -> dict:
     # Sort by score descending
     ranked_matches = sorted(scored_jobs, key=lambda m: m.score, reverse=True)
 
+    # Persist matches for the user (in-memory store; Supabase later)
+    user_id: str = state.get("user_id") or ""  # type: ignore[assignment]
+    if user_id:
+        try:
+            from app.api.matches import save_matches  # noqa: PLC0415
+
+            save_matches(user_id, [m.model_dump() for m in ranked_matches])
+        except Exception:  # noqa: BLE001
+            pass
+
     return {"matching": {"ranked": ranked_matches}}
