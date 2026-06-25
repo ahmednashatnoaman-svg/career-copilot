@@ -15,7 +15,7 @@ async def coaching_chat(
     message: str = Body(...),
     thread_id: str = Body(None),
     mode: str = Body("general"),
-    profile: dict = Body(default_factory=dict),
+    profile: dict = Body({}),  # noqa: B008
 ):
     """Chat with the career coaching agent.
 
