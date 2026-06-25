@@ -2,131 +2,137 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Header } from "@/components/header";
-import { ChatStream, type CopilotStatus } from "@/components/ChatStream";
 import { Button } from "@/components/ui/button";
-import { useSSE } from "@/lib/useSSE";
-import { startRun } from "@/lib/api";
+import { coachingChat } from "@/lib/api";
 import { SendHorizonal, RefreshCw, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUser } from "@/lib/auth";
 
-const DEMO_USER_ID = "demo-user";
+type CoachMode = "general" | "mock_interview" | "career_plan";
 
-interface CoachingPageState {
+interface ChatMessage {
+  role: "user" | "ai";
+  content: string;
+}
+
+interface CoachingState {
+  messages: ChatMessage[];
+  threadId: string | undefined;
+  mode: CoachMode;
   userInput: string;
-  sessionId: string | null;
-  coachingStatus: CopilotStatus;
-  startError: string | null;
+  loading: boolean;
+  error: string | null;
+  started: boolean;
 }
 
 export default function CoachingPage() {
-  const router = useRef<HTMLTextAreaElement>(null);
-  const [state, setState] = useState<CoachingPageState>({
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<CoachingState>({
+    messages: [],
+    threadId: undefined,
+    mode: "general",
     userInput: "",
-    sessionId: null,
-    coachingStatus: "idle",
-    startError: null,
+    loading: false,
+    error: null,
+    started: false,
   });
 
-  const { events, start, abort } = useSSE();
+  const scrollToBottom = () => {
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
 
-  const handleStartMockInterview = useCallback(async () => {
-    setState((s) => ({
-      ...s,
-      startError: null,
-      coachingStatus: "streaming",
-    }));
-
-    try {
-      // In production, call startRun with coaching-specific message
-      const message =
-        "Start a mock interview. Ask me a technical interview question and provide coaching feedback.";
-
-      const { thread_id } = await startRun(DEMO_USER_ID, message);
-      setState((s) => ({ ...s, sessionId: thread_id }));
-
-      // Start SSE stream
-      start(thread_id, {
-        userId: DEMO_USER_ID,
-        message,
-      });
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to start interview session.";
-      setState((s) => ({
-        ...s,
-        startError: msg,
-        coachingStatus: "error",
-      }));
-    }
-  }, [start]);
-
-  const handleSubmitResponse = useCallback(async () => {
-    const response = state.userInput.trim();
-    if (!response || state.coachingStatus === "streaming") return;
+  const sendMessage = useCallback(async (messageText: string) => {
+    if (!messageText.trim() || state.loading) return;
 
     setState((s) => ({
       ...s,
       userInput: "",
-      coachingStatus: "streaming",
-      startError: null,
+      loading: true,
+      error: null,
+      started: true,
+      messages: [...s.messages, { role: "user", content: messageText }],
     }));
+    scrollToBottom();
 
     try {
-      if (!state.sessionId) {
-        // First response: start coaching run
-        const message = `Practice question response: ${response}. Now provide feedback and ask the next question.`;
-        const { thread_id } = await startRun(DEMO_USER_ID, message);
-        setState((s) => ({ ...s, sessionId: thread_id }));
-        start(thread_id, { userId: DEMO_USER_ID, message });
-      } else {
-        // Subsequent responses
-        const message = `My answer: ${response}`;
-        start(state.sessionId, { userId: DEMO_USER_ID, message });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to send response.";
+      const user = await getUser();
+      const userId = user?.id ?? "anonymous";
+      const result = await coachingChat(
+        userId,
+        messageText,
+        state.threadId,
+        state.mode
+      );
       setState((s) => ({
         ...s,
-        startError: msg,
-        coachingStatus: "error",
+        loading: false,
+        threadId: result.thread_id,
+        messages: [...s.messages, { role: "ai", content: result.response }],
+      }));
+      scrollToBottom();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to get response.";
+      setState((s) => ({
+        ...s,
+        loading: false,
+        error: msg,
+        messages: [
+          ...s.messages,
+          { role: "ai", content: "Sorry, something went wrong. Please try again." },
+        ],
       }));
     }
-  }, [state.userInput, state.coachingStatus, state.sessionId, start]);
+  }, [state.loading, state.threadId, state.mode]);
+
+  const handleSubmit = useCallback(() => {
+    sendMessage(state.userInput);
+  }, [sendMessage, state.userInput]);
+
+  const handleStart = useCallback(() => {
+    const starters: Record<CoachMode, string> = {
+      general: "Hi! I'm looking for career coaching. Can you help me?",
+      mock_interview: "Let's do a mock interview. Please ask me a behavioral interview question.",
+      career_plan: "I'd like help creating a career development plan. Can we get started?",
+    };
+    sendMessage(starters[state.mode]);
+  }, [sendMessage, state.mode]);
 
   const handleReset = useCallback(() => {
-    abort();
     setState({
+      messages: [],
+      threadId: undefined,
+      mode: state.mode,
       userInput: "",
-      sessionId: null,
-      coachingStatus: "idle",
-      startError: null,
+      loading: false,
+      error: null,
+      started: false,
     });
-    setTimeout(() => router.current?.focus(), 50);
-  }, [abort]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [state.mode]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmitResponse();
+      handleSubmit();
     }
   };
 
-  const canSubmit =
-    state.userInput.trim().length > 0 && state.coachingStatus !== "streaming";
+  const canSubmit = state.userInput.trim().length > 0 && !state.loading;
 
-  const showStream = state.coachingStatus !== "idle" || events.length > 0;
+  const modeLabels: Record<CoachMode, string> = {
+    general: "General",
+    mock_interview: "Mock Interview",
+    career_plan: "Career Plan",
+  };
 
-  // Empty state
-  if (state.coachingStatus === "idle" && events.length === 0) {
+  // Empty / landing state
+  if (!state.started) {
     return (
       <>
-        <Header
-          title="Coaching"
-          subtitle="Interview prep and personalised skill tips"
-        />
+        <Header title="Coaching" subtitle="Interview prep and personalised skill tips" />
         <main className="flex-1 overflow-y-auto px-6 py-8">
           <div className="max-w-3xl mx-auto space-y-8">
-            {/* ── Hero section ── */}
             <div className="space-y-6 pt-4">
               <div className="space-y-1">
                 <span className="editorial-rule" aria-hidden="true" />
@@ -134,46 +140,51 @@ export default function CoachingPage() {
                   Interview Coaching
                 </h1>
                 <p className="mt-3 text-base text-muted-foreground max-w-md">
-                  Practice with AI-powered mock interviews. Get instant feedback on
-                  your responses and improve your interview skills.
+                  Practice with AI-powered coaching. Get instant feedback and personalised career guidance.
                 </p>
               </div>
 
-              {/* ── Cards: Features ── */}
-              <div className="grid gap-4 sm:grid-cols-2 pt-6">
+              {/* Mode selector */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Session type</p>
+                <div className="flex gap-2 flex-wrap">
+                  {(["general", "mock_interview", "career_plan"] as CoachMode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setState((s) => ({ ...s, mode: m }))}
+                      className={cn(
+                        "px-4 py-2 rounded-md text-sm font-medium border transition-colors",
+                        state.mode === m
+                          ? "bg-foreground text-background border-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
+                      )}
+                    >
+                      {modeLabels[m]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feature cards */}
+              <div className="grid gap-4 sm:grid-cols-2 pt-2">
                 <div className="card-warm px-4 py-3">
-                  <p className="font-medium text-foreground text-sm mb-1">
-                    Real-world questions
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Practice questions tailored to your target roles
-                  </p>
+                  <p className="font-medium text-foreground text-sm mb-1">Real-world questions</p>
+                  <p className="text-xs text-muted-foreground">Practice questions tailored to your target roles</p>
                 </div>
                 <div className="card-warm px-4 py-3">
-                  <p className="font-medium text-foreground text-sm mb-1">
-                    Instant feedback
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Get coaching tips to improve your answers
-                  </p>
+                  <p className="font-medium text-foreground text-sm mb-1">Instant feedback</p>
+                  <p className="text-xs text-muted-foreground">Get coaching tips to improve your answers</p>
                 </div>
               </div>
             </div>
 
-            {/* ── CTA ── */}
             <div className="pt-4 border-t border-border">
-              <Button
-                onClick={handleStartMockInterview}
-                size="lg"
-                className="gap-2"
-                aria-label="Start mock interview"
-              >
+              <Button onClick={handleStart} size="lg" className="gap-2" aria-label="Start coaching session">
                 <GraduationCap className="h-5 w-5" />
-                Start Mock Interview
+                Start {modeLabels[state.mode]} Session
               </Button>
-              <p className="mt-3 text-xs text-muted-foreground">
-                You can answer as many practice questions as you like.
-              </p>
+              <p className="mt-3 text-xs text-muted-foreground">You can switch modes and start fresh at any time.</p>
             </div>
           </div>
         </main>
@@ -184,99 +195,103 @@ export default function CoachingPage() {
   // Active coaching session
   return (
     <>
-      <Header
-        title="Coaching"
-        subtitle="Interview prep and personalised skill tips"
-      />
+      <Header title="Coaching" subtitle={modeLabels[state.mode]} />
 
       <main className="flex-1 flex flex-col overflow-hidden px-6 py-6">
-        <div className="max-w-3xl w-full mx-auto flex flex-col flex-1 min-h-0 gap-6">
-          {/* ── Title (on idle, before first question) ── */}
-          {state.coachingStatus === "idle" && (
-            <div className="space-y-0">
-              <span className="editorial-rule" aria-hidden="true" />
-              <h2 className="font-display text-2xl font-semibold text-foreground leading-tight">
-                Let&apos;s practice together
-              </h2>
-              <p className="mt-2 text-muted-foreground text-sm max-w-md">
-                I&apos;ll ask you interview questions and provide real-time coaching
-                feedback.
-              </p>
-            </div>
-          )}
+        <div className="max-w-3xl w-full mx-auto flex flex-col flex-1 min-h-0 gap-4">
 
-          {/* ── Chat stream ── */}
-          {showStream && (
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <ChatStream
-                events={events}
-                status={state.coachingStatus}
-                userMessage={state.userInput}
-              />
-            </div>
-          )}
+          {/* Mode tabs (compact) */}
+          <div className="flex gap-2 shrink-0">
+            {(["general", "mock_interview", "career_plan"] as CoachMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setState((s) => ({ ...s, mode: m }))}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  state.mode === m
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {modeLabels[m]}
+              </button>
+            ))}
+          </div>
 
-          {/* ── Error banner ── */}
-          {state.startError && (
-            <div className="rounded-md bg-destructive/8 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-              {state.startError}
-            </div>
-          )}
-
-          {/* ── Input area ── */}
-          <div
-            className={cn(
-              "card-warm px-4 py-3",
-              state.coachingStatus === "streaming" &&
-                "opacity-60 pointer-events-none"
+          {/* Chat history */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-2">
+            {state.messages.map((msg, i) => (
+              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    "max-w-[80%] rounded-lg px-4 py-3 text-sm",
+                    msg.role === "user"
+                      ? "bg-foreground text-background"
+                      : "card-warm text-foreground"
+                  )}
+                >
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                </div>
+              </div>
+            ))}
+            {state.loading && (
+              <div className="flex justify-start">
+                <div className="card-warm rounded-lg px-4 py-3 text-sm text-muted-foreground animate-pulse">
+                  Thinking…
+                </div>
+              </div>
             )}
-          >
+            {state.error && (
+              <div className="rounded-md bg-destructive/8 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+                {state.error}
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input area */}
+          <div className="card-warm px-4 py-3 shrink-0">
             <label htmlFor="coaching-input" className="sr-only">
-              Your response to the interview question
+              Your message
             </label>
             <textarea
               id="coaching-input"
-              ref={router}
+              ref={textareaRef}
               value={state.userInput}
-              onChange={(e) =>
-                setState((s) => ({ ...s, userInput: e.target.value }))
-              }
+              onChange={(e) => setState((s) => ({ ...s, userInput: e.target.value }))}
               onKeyDown={handleKeyDown}
-              placeholder="Type your response here. Press Enter to submit, Shift+Enter for a new line."
-              rows={4}
-              disabled={state.coachingStatus === "streaming"}
+              placeholder="Type your message… (Enter to send, Shift+Enter for new line)"
+              rows={3}
+              disabled={state.loading}
               className={cn(
                 "w-full resize-none bg-transparent text-sm text-foreground",
-                "placeholder:text-muted-foreground/60",
-                "focus:outline-none",
-                "disabled:cursor-not-allowed"
+                "placeholder:text-muted-foreground/60 focus:outline-none",
+                "disabled:cursor-not-allowed disabled:opacity-60"
               )}
-              aria-label="Interview response input"
+              aria-label="Coaching message input"
             />
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
               <p className="text-xs text-muted-foreground/50">
-                Press Enter to send · Shift+Enter for new line
+                Enter to send · Shift+Enter for new line
               </p>
               <div className="flex items-center gap-2">
-                {(state.coachingStatus === "done" ||
-                  state.coachingStatus === "error") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleReset}
-                    className="gap-1.5 text-muted-foreground h-8"
-                    aria-label="Start a new coaching session"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    New
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  className="gap-1.5 text-muted-foreground h-8"
+                  aria-label="Start a new session"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  New
+                </Button>
                 <Button
                   size="sm"
-                  onClick={handleSubmitResponse}
+                  onClick={handleSubmit}
                   disabled={!canSubmit}
                   className="gap-1.5 h-8"
-                  aria-label="Send your response"
+                  aria-label="Send message"
                 >
                   <SendHorizonal className="h-3.5 w-3.5" />
                   Send
