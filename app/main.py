@@ -4,8 +4,9 @@ import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.applications import router as applications_router
 from app.api.coaching import router as coaching_router
@@ -42,6 +43,44 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# JWT Auth middleware — only active when Supabase is configured
+# ---------------------------------------------------------------------------
+
+_PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def jwt_auth_middleware(request: Request, call_next):
+    """Verify Supabase JWT on all non-public routes.
+
+    Skipped entirely when SUPABASE_URL is not set (local dev / CI without keys).
+    """
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is None:
+        return await call_next(request)
+
+    if request.url.path in _PUBLIC_PATHS or request.url.path.startswith("/docs"):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Missing auth token"})
+
+    token = auth_header.removeprefix("Bearer ").strip()
+    try:
+        user_resp = db.auth.get_user(token)
+        if not user_resp or not user_resp.user:
+            return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+        request.state.user_id = user_resp.user.id
+    except Exception:  # noqa: BLE001
+        return JSONResponse(status_code=401, content={"detail": "Token verification failed"})
+
+    return await call_next(request)
+
 
 # ---------------------------------------------------------------------------
 # Routers
