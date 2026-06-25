@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
-# In-memory interview sessions (replace with Supabase later)
+# In-memory fallback (used when Supabase is not configured or in tests)
 _sessions: dict[str, dict] = {}
 
 INTERVIEW_SYSTEM_PROMPT = (
@@ -22,6 +22,66 @@ INTERVIEW_SYSTEM_PROMPT = (
 )
 
 
+def _save_session(session: dict) -> None:
+    """Persist session to Supabase or in-memory."""
+    session_id = session["session_id"]
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is not None:
+        try:
+            db.table("interview_sessions").upsert(
+                {
+                    "id": session_id,
+                    "user_id": session["user_id"],
+                    "role": session["role"],
+                    "interview_type": session.get("interview_type", "behavioral"),
+                    "messages": session.get("messages", []),
+                    "question_count": session.get("question_count", 0),
+                    "status": session.get("status", "active"),
+                }
+            ).execute()
+            _sessions[session_id] = session
+            return
+        except Exception:  # noqa: BLE001
+            pass
+    _sessions[session_id] = session
+
+
+def _load_session(session_id: str) -> dict | None:
+    """Load session from in-memory first, then Supabase."""
+    if session_id in _sessions:
+        return _sessions[session_id]
+
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is not None:
+        try:
+            result = (
+                db.table("interview_sessions")
+                .select("*")
+                .eq("id", session_id)
+                .single()
+                .execute()
+            )
+            if result.data:
+                session = {
+                    "session_id": result.data["id"],
+                    "user_id": result.data["user_id"],
+                    "role": result.data["role"],
+                    "interview_type": result.data.get("interview_type", "behavioral"),
+                    "messages": result.data.get("messages") or [],
+                    "question_count": result.data.get("question_count", 0),
+                    "status": result.data.get("status", "active"),
+                }
+                _sessions[session_id] = session
+                return session
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
 @router.post("/start")
 async def start_interview(
     user_id: str = Body(...),
@@ -29,17 +89,7 @@ async def start_interview(
     interview_type: str = Body("behavioral"),
     cv_summary: str = Body(""),
 ):
-    """Start a new mock interview session.
-
-    Body:
-        user_id:        The user's ID.
-        role:           Target job role (e.g. "Senior Software Engineer").
-        interview_type: "behavioral" | "technical" | "system_design".
-        cv_summary:     Optional CV summary for personalised questions.
-
-    Returns:
-        JSON with ``session_id``, ``question``, and ``question_number``.
-    """
+    """Start a new mock interview session. Persists to Supabase."""
     session_id = str(uuid.uuid4())
 
     context = f"Candidate background: {cv_summary}" if cv_summary else ""
@@ -63,9 +113,9 @@ async def start_interview(
         )
         first_question = response.content
     except Exception:  # noqa: BLE001
-        pass  # use default question
+        pass
 
-    _sessions[session_id] = {
+    session = {
         "session_id": session_id,
         "user_id": user_id,
         "role": role,
@@ -75,6 +125,7 @@ async def start_interview(
         "question_count": 1,
         "status": "active",
     }
+    _save_session(session)
 
     return {
         "session_id": session_id,
@@ -88,16 +139,8 @@ async def answer_question(
     session_id: str,
     answer: str = Body(...),
 ):
-    """Submit an answer to the current interview question.
-
-    Body:
-        answer: The candidate's answer text.
-
-    Returns:
-        JSON with ``session_id``, ``feedback``, ``question_number``,
-        ``status``, and ``is_complete``.
-    """
-    session = _sessions.get(session_id)
+    """Submit an answer. Loads and updates session from Supabase."""
+    session = _load_session(session_id)
     if not session:
         return {"error": "Session not found"}
 
@@ -127,19 +170,19 @@ async def answer_question(
                 history.append(HumanMessage(content=msg["content"]))
             else:
                 history.append(AIMessage(content=msg["content"]))
-        history.append(
-            HumanMessage(content=f"[INTERVIEWER INSTRUCTION: {next_instruction}]")
-        )
+        history.append(HumanMessage(content=f"[INTERVIEWER INSTRUCTION: {next_instruction}]"))
         response = await llm.ainvoke(history)
         feedback = response.content
     except Exception:  # noqa: BLE001
-        pass  # use default feedback
+        pass
 
     session["messages"].append({"role": "assistant", "content": feedback})
     session["question_count"] += 1
 
     if is_last:
         session["status"] = "completed"
+
+    _save_session(session)
 
     return {
         "session_id": session_id,
@@ -152,12 +195,7 @@ async def answer_question(
 
 @router.get("/{session_id}")
 async def get_session(session_id: str):
-    """Get interview session details.
-
-    Returns:
-        The full session dict, or ``{"error": "Session not found"}``.
-    """
-    session = _sessions.get(session_id)
+    session = _load_session(session_id)
     if not session:
         return {"error": "Session not found"}
     return session
