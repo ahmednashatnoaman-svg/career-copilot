@@ -55,5 +55,5 @@ class CopilotState(TypedDict, total=False):
     # --- control ---
     critic_verdict: dict | None
     critic_retries: int
-    hitl_request: dict | None  # stored as plain dict (Pydantic fails msgpack)
+    hitl_request: HitlRequest | None
     final_answer: str | None

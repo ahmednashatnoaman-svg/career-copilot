@@ -30,9 +30,10 @@ dependencies = [
   "pymupdf>=1.27.0",
   "python-docx>=1.2.0",
   "pdfplumber>=0.11.0",
-  # --- web search / scraping (market agent) ---
+  # --- web search / scraping / job boards (market agent) ---
   "ddgs>=9.14.4",
   "tavily-python>=0.5.0",
+  "python-jobspy>=1.1.0",
   "beautifulsoup4>=4.15.0",
   "lxml>=6.1.0",
   "httpx>=0.28.1",

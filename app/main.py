@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.admin import router as admin_router
 from app.api.applications import router as applications_router
 from app.api.coaching import router as coaching_router
 from app.api.cv import router as cv_router
@@ -94,6 +95,7 @@ app.include_router(coaching_router)
 app.include_router(interviews_router)
 app.include_router(cv_router)
 app.include_router(matches_router)
+app.include_router(admin_router)
 
 
 # ---------------------------------------------------------------------------

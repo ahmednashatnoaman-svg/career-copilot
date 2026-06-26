@@ -7,6 +7,7 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.agents.coaching.coaching_tools import COACHING_TOOLS
 from app.agents.coaching.llm import LLMService
 from app.agents.coaching.memory import PostgresMemory
 from app.agents.coaching.observability import get_request_id, log_event
@@ -22,6 +23,7 @@ from app.agents.coaching.prompts import (
 )
 from app.agents.coaching.schemas import ChatRequest, ChatResponse
 from app.agents.coaching.settings import Settings
+from app.memory.longterm import recall, remember
 
 SubIntent = Literal[
     "mock_interview_start",
@@ -178,6 +180,10 @@ class CareerCoachingAgent:
         messages = self.memory.recent_messages(user_id, thread_id, limit=12)
         active_interview = self.memory.active_interview(user_id, thread_id)
         memories = self.memory.search_memory(user_id, state["message"], limit=6)
+        # Inject long-term key-value facts (career goals, preferences) into profile
+        long_term_facts = recall(user_id)
+        if long_term_facts:
+            profile = {**profile, **long_term_facts}
         return {
             "profile": profile,
             "messages": messages,
@@ -703,10 +709,14 @@ class CareerCoachingAgent:
             "Based on what you shared, the best next move is to make the goal more concrete, "
             "choose one target role, identify the top 3 missing skills, and turn those into a short weekly plan."
         )
-        response = self.llm.text(
+        # Inject user_id so the LLM can call remember_fact with the correct ID
+        user_context = self._context_prompt(state)
+        user_id_hint = f'\n\nUser ID for memory tools: "{state["user_id"]}"'
+        response = self.llm.text_with_tools(
             ADVICE_SYSTEM,
-            self._context_prompt(state),
+            user_context + user_id_hint,
             fallback,
+            COACHING_TOOLS,
         )
         return {
             "response": response,
@@ -828,6 +838,17 @@ class CareerCoachingAgent:
                 metadata={"sub_intent": sub_intent},
             )
             persisted["memory_items"] += 1
+
+        # Persist key facts to long-term store when career plan is generated
+        career_plan = state.get("career_plan_to_store")
+        if career_plan:
+            target_role = career_plan.get("target_role")
+            if target_role:
+                remember(user_id, "target_role", target_role)
+        profile = state.get("profile", {})
+        for fact_key in ("preferred_country", "experience_level", "current_role"):
+            if profile.get(fact_key):
+                remember(user_id, fact_key, profile[fact_key])
 
         return {"memory_updates": {"persisted": True, **persisted}}
 

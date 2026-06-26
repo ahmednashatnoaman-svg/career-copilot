@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from langgraph.types import interrupt
 
-from app.orchestrator.state import CopilotState
+from app.orchestrator.state import CopilotState, HitlRequest
 
 
 def request_approval(kind: str, payload: dict, prompt: str) -> Any:
@@ -53,14 +53,13 @@ def application_send_node(state: CopilotState) -> dict:
     if user_id:
         save_application(user_id, application)
 
-    # Store hitl_request as a plain dict — Pydantic BaseModel fails msgpack.
-    hitl_req_dict: dict = {
-        "kind": "application_send",
-        "payload": application,
-        "prompt": "Review and approve this job application before sending",
-    }
+    hitl_req = HitlRequest(
+        kind="application_send",
+        payload=application,
+        prompt="Review and approve this job application before sending",
+    )
 
     return {
         "application": application,
-        "hitl_request": hitl_req_dict,
+        "hitl_request": hitl_req,
     }
