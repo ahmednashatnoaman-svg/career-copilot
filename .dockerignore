@@ -1,0 +1,15 @@
+.git/
+node_modules/
+frontend/node_modules/
+.venv/
+frontend/.next/
+__pycache__/
+*.pyc
+data/
+tests/
+docs/
+.env*
+infra/
+README.md
+AGENTS.md
+render.yaml

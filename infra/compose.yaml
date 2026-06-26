@@ -7,6 +7,11 @@ services:
       POSTGRES_DB: career
     ports: ["5433:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U career"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   qdrant:
     image: docker.io/qdrant/qdrant:latest
     ports: ["6333:6333"]
@@ -14,13 +19,20 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: backend/Containerfile
+      dockerfile: ../backend/Containerfile
     env_file: ../.env
     environment:
       DATABASE_URL: "postgresql://career:career@postgres:5432/career"
       QDRANT_URL: "http://qdrant:6333"
+      QDRANT_API_KEY: ""
+      SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
     ports: ["8000:8000"]
-    depends_on: [postgres, qdrant]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
   frontend:
     build:
       context: ../frontend
