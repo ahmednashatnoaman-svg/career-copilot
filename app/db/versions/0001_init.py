@@ -23,7 +23,7 @@ def upgrade() -> None:
     # --- users ---
     op.create_table(
         "users",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column(
             "created_at",
@@ -38,8 +38,8 @@ def upgrade() -> None:
     # --- documents ---
     op.create_table(
         "documents",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
+        sa.Column("user_id", sa.String(36), nullable=False),
         sa.Column("filename", sa.String(512), nullable=False),
         sa.Column("content", sa.Text(), nullable=True),
         sa.Column(
@@ -55,7 +55,7 @@ def upgrade() -> None:
     # --- jobs ---
     op.create_table(
         "jobs",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
         sa.Column("title", sa.String(512), nullable=False),
         sa.Column("company", sa.String(512), nullable=True),
         sa.Column("url", sa.Text(), nullable=True),
@@ -72,9 +72,9 @@ def upgrade() -> None:
     # --- matches ---
     op.create_table(
         "matches",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("job_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
+        sa.Column("user_id", sa.String(36), nullable=False),
+        sa.Column("job_id", sa.String(36), nullable=False),
         sa.Column("score", sa.Float(), nullable=True),
         sa.Column(
             "created_at",
@@ -90,9 +90,9 @@ def upgrade() -> None:
     # --- applications ---
     op.create_table(
         "applications",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("job_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
+        sa.Column("user_id", sa.String(36), nullable=False),
+        sa.Column("job_id", sa.String(36), nullable=False),
         sa.Column(
             "status",
             sa.Enum(
@@ -122,8 +122,8 @@ def upgrade() -> None:
     # --- runs ---
     op.create_table(
         "runs",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(36), nullable=False),
+        sa.Column("user_id", sa.String(36), nullable=False),
         sa.Column("thread_id", sa.String(255), nullable=True),
         sa.Column("status", sa.String(64), nullable=True),
         sa.Column(
