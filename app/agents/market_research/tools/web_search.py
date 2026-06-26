@@ -59,7 +59,7 @@ def search_jobs(role: str, location: str, site: str | None = None) -> list[dict]
     else:
         query = f'{role} jobs {location}'
 
-    return search(query)
+    return search(query, max_results=2)
 
 
 def search_salaries(role: str, location: str) -> list[dict]:
