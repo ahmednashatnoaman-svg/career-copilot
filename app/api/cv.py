@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 router = APIRouter(prefix="/cv", tags=["cv"])
 
 
 @router.post("/tailor")
 async def tailor_cv(
-    user_id: str = Body(...),
+    request: Request,
     resume_text: str = Body(...),
     job_description: str = Body(...),
     job_title: str = Body(""),
@@ -18,7 +18,6 @@ async def tailor_cv(
     """Tailor a CV to a specific job description using ATS optimisation.
 
     Body:
-        user_id:         The user's ID.
         resume_text:     Full text of the existing CV.
         job_description: Target job description.
         job_title:       Optional job title for context.
@@ -91,7 +90,7 @@ async def tailor_cv(
 
 @router.post("/cover-letter")
 async def generate_cover_letter(
-    user_id: str = Body(...),
+    request: Request,
     resume_text: str = Body(...),
     job_description: str = Body(...),
     job_title: str = Body(""),
@@ -100,7 +99,6 @@ async def generate_cover_letter(
     """Generate a personalised cover letter from a CV and job description.
 
     Body:
-        user_id:         The user's ID.
         resume_text:     Full text of the existing CV.
         job_description: Target job description.
         job_title:       Optional job title for context.
