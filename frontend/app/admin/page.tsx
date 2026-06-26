@@ -20,9 +20,6 @@ import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { API_BASE, getAuthHeaders } from "@/lib/api";
 
-const ADMIN_EMAIL =
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ahmed.nashat.noaman@gmail.com";
-
 interface SystemStats {
   db_connected: boolean;
   counts: {
@@ -71,7 +68,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
   const [memoryUserId, setMemoryUserId] = useState("");
@@ -88,6 +85,10 @@ export default function AdminPage() {
     try {
       const auth = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/admin/stats`, { headers: auth });
+      if (res.status === 401 || res.status === 403) {
+        router.replace("/");
+        return;
+      }
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       setStats(await res.json());
     } catch (err) {
@@ -140,20 +141,21 @@ export default function AdminPage() {
     }
   };
 
-  // Gate: verify session email before rendering anything
+  // Gate: call /admin/stats — backend returns 403 for non-admins, 200 for admins.
+  // Admin status is managed in Supabase (profiles.is_admin), not in frontend code.
   useEffect(() => {
     (async () => {
       try {
-        const { createClient } = await import("@/lib/supabase");
-        const supabase = createClient();
-        const { data } = await supabase.auth.getSession();
-        const email = data.session?.user?.email ?? "";
-        if (email !== ADMIN_EMAIL) {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_BASE}/admin/stats`, { headers: auth });
+        if (res.status === 401 || res.status === 403) {
           router.replace("/");
           return;
         }
+        if (res.ok) {
+          setStats(await res.json());
+        }
         setIsAdmin(true);
-        fetchStats();
       } catch {
         router.replace("/");
       }
@@ -161,7 +163,7 @@ export default function AdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (isAdmin === null) return null; // still checking
+  if (isAdmin === null) return null; // waiting for admin check
 
   return (
     <>
@@ -194,6 +196,7 @@ export default function AdminPage() {
                 )}
               </div>
               <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={fetchStats}
@@ -245,6 +248,7 @@ export default function AdminPage() {
                 className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60"
               />
               <Button
+                type="button"
                 onClick={fetchMemory}
                 disabled={loadingMemory || !memoryUserId.trim()}
                 size="sm"
@@ -262,6 +266,7 @@ export default function AdminPage() {
             {memory && (
               <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
                 <button
+                  type="button"
                   className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors"
                   onClick={() => setMemoryExpanded((v) => !v)}
                 >
@@ -298,6 +303,7 @@ export default function AdminPage() {
                             </p>
                           </div>
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => deleteMemoryKey(key)}
