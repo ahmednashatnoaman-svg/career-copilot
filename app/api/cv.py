@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Body, Request
+
+# Matches the first integer 0-100 in any LLM response string.
+# Handles: "85", "85%", "The score is 85%", "Score: 85 out of 100"
+_SCORE_RE = re.compile(r"\b([0-9]{1,3})\b")
 
 router = APIRouter(prefix="/cv", tags=["cv"])
 
@@ -65,10 +71,12 @@ async def tailor_cv(
             f"CV:\n{resume_text}\n\nJOB:\n{job_description}"
         )
         score_response = await llm.ainvoke([HumanMessage(content=score_prompt)])
-        try:
-            score = int(score_response.content.strip().replace("%", ""))
-        except (ValueError, AttributeError):
-            score = 75
+        score = 75  # safe default
+        for match in _SCORE_RE.findall(score_response.content or ""):
+            val = int(match)
+            if 0 <= val <= 100:
+                score = val
+                break
 
         return {
             "tailored_cv": tailored_cv,
