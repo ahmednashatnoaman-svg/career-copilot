@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
-
-import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
-logger = logging.getLogger(__name__)
-
 from app.rag.ingest import ingest_document as _default_ingest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
