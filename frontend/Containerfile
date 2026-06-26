@@ -21,9 +21,15 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Pass build-time API base; can be overridden at runtime via env
+# Pass build-time vars — NEXT_PUBLIC_* are baked into the JS bundle.
+# Supabase vars default to placeholders so the image builds without secrets;
+# pass real values via --build-arg in production CI.
 ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
+ARG NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon-key-for-docker-build
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 # Enable standalone output for Docker self-hosting
 ENV NEXT_OUTPUT=standalone
 
