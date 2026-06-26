@@ -34,7 +34,7 @@ def _build_groq(model: str, temperature: float, max_tokens: int | None, api_key:
 
     s = get_settings()
     key = api_key or s.groq_api_key
-    kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
+    kwargs: dict = {"model": model, "temperature": temperature, "api_key": key, "max_retries": 0}
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     return ChatGroq(**kwargs)
