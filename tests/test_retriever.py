@@ -69,12 +69,14 @@ class TestIngestDocument:
         """ingest_document with plain text should chunk and upsert, returning chunk count."""
         from app.rag.ingest import ingest_document
 
-        # Mock chunking and upserting
+        # Mock chunking, upserting, and collection creation
         mock_chunk_text = MagicMock(return_value=["chunk1", "chunk2", "chunk3"])
         mock_upsert_chunks = MagicMock(return_value=3)
+        mock_ensure_collection = MagicMock()
 
         monkeypatch.setattr("app.rag.ingest.chunk_text", mock_chunk_text)
         monkeypatch.setattr("app.rag.ingest.upsert_chunks", mock_upsert_chunks)
+        monkeypatch.setattr("app.rag.ingest.ensure_collection", mock_ensure_collection)
 
         # Act
         result = ingest_document(
