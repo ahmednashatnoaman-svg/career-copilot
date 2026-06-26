@@ -33,6 +33,9 @@ def application_send_node(state: CopilotState) -> dict:
     )
 
     application: dict = dict(state.get("application") or {})
+    if not application:
+        # If there's no application to send (e.g., job search only), bypass HITL
+        return {}
     thread_id = state.get("thread_id", "")
     user_id = state.get("user_id", "")
 
@@ -45,9 +48,18 @@ def application_send_node(state: CopilotState) -> dict:
     }
 
     resume = interrupt({"hitl_request": hitl_data})
+    resume_dict = resume or {}
 
-    approved: bool = bool((resume or {}).get("approved", False))
+    approved: bool = bool(resume_dict.get("approved", False))
     application["status"] = "APPROVED" if approved else "REJECTED"
+    
+    # Apply user edits if provided
+    if "edited_package" in resume_dict and isinstance(resume_dict["edited_package"], dict):
+        edited = resume_dict["edited_package"]
+        if "cover_letter" in edited:
+            application["cover_letter"] = edited["cover_letter"]
+        if "resume_snapshot" in edited:
+            application["resume_snapshot"] = edited["resume_snapshot"]
 
     # Persist the application so GET /applications returns it immediately.
     if user_id:

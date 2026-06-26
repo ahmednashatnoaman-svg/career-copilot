@@ -289,17 +289,52 @@ def _dispatch_route(state: CopilotState) -> str:
 
 def _aggregate_node(state: CopilotState) -> dict:
     """Compose a human-readable ``final_answer`` from whatever namespaced outputs are present."""
+    import json
     parts: list[str] = []
 
     if cv := state.get("cv_analysis"):
-        parts.append(f"[CV Analysis]\n{cv}")
+        summary = cv.get("summary", "")
+        skills = ", ".join(cv.get("skills", []))
+        parts.append(f"### 📄 CV Analysis\n\n**Summary:** {summary}\n\n**Skills:** {skills}")
 
     if rag_out := state.get("rag"):
         answer = rag_out.get("answer", "") if isinstance(rag_out, dict) else str(rag_out)
-        parts.append(f"[Knowledge Base]\n{answer}")
+        parts.append(f"### 📚 Knowledge Base\n\n{answer}")
 
-    if market_out := state.get("market"):
-        parts.append(f"[Market Research]\n{market_out}")
+    if matching_out := state.get("matching"):
+        ranked = matching_out.get("ranked", [])
+        if ranked:
+            lines = ["### 🎯 Top Job Matches\n"]
+            for i, match in enumerate(ranked, 1):
+                job = match.get("job", {})
+                title = job.get("title", "Unknown Role")
+                company = job.get("company", "Unknown Company")
+                url = job.get("url", "#")
+                score = match.get("score", 0.0)
+                rationale = match.get("rationale", "")
+                
+                lines.append(f"{i}. **[{title}]({url})** at {company} *(Match Score: {score:.2f})*")
+                if rationale:
+                    lines.append(f"   - *Why it's a match:* {rationale}")
+            parts.append("\n".join(lines))
+    elif market_out := state.get("market"):
+        jobs = market_out.get("jobs", [])
+        if jobs:
+            lines = ["### 💼 Market Research (Jobs Found)\n"]
+            for i, job in enumerate(jobs, 1):
+                title = job.get("title", "Unknown Role")
+                company = job.get("company", "Unknown Company")
+                url = job.get("url", "#")
+                lines.append(f"{i}. **[{title}]({url})** at {company}")
+            parts.append("\n".join(lines))
+
+    if portfolio_out := state.get("portfolio"):
+        analysis = portfolio_out.get("analysis", "")
+        parts.append(f"### 💻 Portfolio Analysis\n\n{analysis}")
+
+    if career_plan_out := state.get("career_plan"):
+        plan = career_plan_out.get("plan", "")
+        parts.append(f"### 🗺️ Career Plan\n\n{plan}")
 
     if coaching_out := state.get("coaching"):
         response = (
@@ -307,9 +342,9 @@ def _aggregate_node(state: CopilotState) -> dict:
             if isinstance(coaching_out, dict)
             else str(coaching_out)
         )
-        parts.append(f"[Coaching]\n{response}")
+        parts.append(f"### 🤝 Coaching\n\n{response}")
 
-    final_answer = "\n\n".join(parts) if parts else "No agent output was produced."
+    final_answer = "\n\n---\n\n".join(parts) if parts else "No agent output was produced."
     return {"final_answer": final_answer}
 
 

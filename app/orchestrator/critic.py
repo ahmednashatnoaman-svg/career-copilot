@@ -142,12 +142,12 @@ def critic_route(state: CopilotState) -> str:
     Returns:
         ``"accept"``     – verdict action is ACCEPT
         ``"regenerate"`` – verdict action is REGENERATE
-        ``"escalate"``   – verdict action is ESCALATE
+        ``"escalate"``   – verdict action is ESCALATE (routes to application_send if application exists, else aggregate)
     """
     verdict: dict | None = state.get("critic_verdict")
     if verdict is None:
         # Defensive fallback: no verdict stored → escalate
-        return "escalate"
+        return "escalate" if state.get("application") else "accept"
 
     action: str = verdict.get("action", "ESCALATE")
 
@@ -155,4 +155,10 @@ def critic_route(state: CopilotState) -> str:
         return "accept"
     if action == "REGENERATE":
         return "regenerate"
-    return "escalate"
+    
+    # If action is ESCALATE, we only want to HITL (application_send) if an application was drafted
+    if state.get("application"):
+        return "escalate"
+    
+    # Otherwise, it's a search/coaching escalation, just aggregate what we have
+    return "accept"

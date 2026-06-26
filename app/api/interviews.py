@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import uuid
 
 from fastapi import APIRouter, Body, HTTPException, Request
@@ -25,8 +27,28 @@ INTERVIEW_SYSTEM_PROMPT = (
 )
 
 
+
+
+_FALLBACK_FILE = "/tmp/interviews.json"
+
+def _load_fallback_sessions() -> dict:
+    if os.path.exists(_FALLBACK_FILE):
+        try:
+            with open(_FALLBACK_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_fallback_sessions(sessions: dict) -> None:
+    try:
+        with open(_FALLBACK_FILE, "w") as f:
+            json.dump(sessions, f)
+    except Exception:
+        pass
+
 def _save_session(session: dict) -> None:
-    """Persist session to Supabase or in-memory."""
+    """Persist session to Supabase or file-based fallback."""
     session_id = session["session_id"]
     from app.services.supabase_db import get_client  # noqa: PLC0415
 
@@ -48,13 +70,23 @@ def _save_session(session: dict) -> None:
             return
         except Exception as exc:  # noqa: BLE001
             logger.warning("_save_session Supabase upsert failed: %s", exc)
+    
     _sessions[session_id] = session
+    # File-based fallback for multi-worker without Supabase
+    all_sessions = _load_fallback_sessions()
+    all_sessions[session_id] = session
+    _save_fallback_sessions(all_sessions)
 
 
 def _load_session(session_id: str) -> dict | None:
-    """Load session from in-memory first, then Supabase."""
+    """Load session from memory, then file-based fallback, then Supabase."""
     if session_id in _sessions:
         return _sessions[session_id]
+        
+    all_sessions = _load_fallback_sessions()
+    if session_id in all_sessions:
+        _sessions[session_id] = all_sessions[session_id]
+        return all_sessions[session_id]
 
     from app.services.supabase_db import get_client  # noqa: PLC0415
 

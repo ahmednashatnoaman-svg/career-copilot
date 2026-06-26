@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SSEEvent, SSENodeEvent } from "@/lib/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export type CopilotStatus =
   | "idle"
@@ -223,17 +225,13 @@ export function ChatStream({ events, status, userMessage }: ChatStreamProps) {
           ) : tokenText ? (
             <div
               ref={outputRef}
-              className="flex-1 overflow-y-auto text-sm text-foreground leading-relaxed whitespace-pre-wrap min-h-0"
+              className="flex-1 overflow-y-auto text-sm text-foreground leading-relaxed min-h-0 prose prose-sm dark:prose-invert max-w-none"
               aria-live="polite"
               aria-label="Agent output"
             >
-              {tokenText}
-              {status === "streaming" && (
-                <span
-                  className="inline-block w-0.5 h-4 bg-primary/70 ml-0.5 animate-pulse align-middle"
-                  aria-hidden="true"
-                />
-              )}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {tokenText + (status === "streaming" ? " ▍" : "")}
+              </ReactMarkdown>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-muted-foreground/60">
