@@ -11,9 +11,14 @@ class Settings(BaseSettings):
 
     # LLM
     llm_provider: str = "groq"
+    # Groq / generic model names (used as primary when llm_provider=groq)
     llm_model: str = "llama-3.3-70b-versatile"
     llm_model_fast: str = "llama-3.1-8b-instant"
     groq_api_key: str | None = None
+    # Google Gemini model names (used as primary when llm_provider=google, else as fallback)
+    # gemini-2.0-flash-lite has 30 RPM on free tier vs 15 RPM for 2.0-flash
+    google_model: str = "gemini-2.0-flash"
+    google_model_fast: str = "gemini-2.0-flash-lite"
     google_api_key: str | None = None
 
     # Azure OpenAI (AI Foundry endpoint — OpenAI-compatible)
