@@ -9,7 +9,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agents.coaching.coaching_tools import COACHING_TOOLS
 from app.agents.coaching.llm import LLMService
-from app.agents.coaching.memory import PostgresMemory
+from app.agents.coaching.memory import NullMemory, PostgresMemory
 from app.agents.coaching.observability import get_request_id, log_event
 from app.agents.coaching.prompts import (
     ADVICE_SYSTEM,
@@ -76,7 +76,7 @@ class CareerCoachingAgent:
     def __init__(
         self,
         settings: Settings,
-        memory: PostgresMemory,
+        memory: PostgresMemory | NullMemory,
         checkpointer=None,
     ) -> None:
         self.settings = settings
@@ -1405,26 +1405,30 @@ coaching_graph = None
 def build_coaching_graph(checkpointer=None):
     """Build and compile the coaching graph with an optional shared checkpointer.
 
-    Args:
-        checkpointer: A LangGraph checkpointer instance (e.g. shared
-            ``PostgresSaver``).  Pass ``None`` to compile without persistence
-            (useful for smoke tests and unit tests that have no live DB).
-
-    Returns:
-        A compiled ``StateGraph`` (``CompiledGraph``).
+    Falls back to NullMemory (stateless, no-op) when DATABASE_URL is absent or
+    the database is not reachable, so the coaching endpoint never crashes on
+    connection failures (common in HF Space where local Postgres is absent).
     """
     from app.agents.coaching.embeddings import build_embedding_service
-    from app.agents.coaching.memory import PostgresMemory
+    from app.agents.coaching.memory import NullMemory, PostgresMemory
     from app.agents.coaching.settings import get_settings
 
     settings = get_settings()
-    embeddings = build_embedding_service(settings)
-    memory = PostgresMemory(settings, embeddings)
-    try:
-        memory.ensure_schema()
-    except Exception:
-        # Schema creation may fail in test environments without a live DB;
-        # the graph will surface a real error at runtime if the table is missing.
-        pass
+
+    memory: PostgresMemory | NullMemory
+    if settings.database_url:
+        embeddings = build_embedding_service(settings)
+        pg_memory = PostgresMemory(settings, embeddings)
+        if pg_memory.ping():
+            try:
+                pg_memory.ensure_schema()
+            except Exception:
+                pass
+            memory = pg_memory
+        else:
+            memory = NullMemory()
+    else:
+        memory = NullMemory()
+
     agent = CareerCoachingAgent(settings=settings, memory=memory, checkpointer=checkpointer)
     return agent.graph
