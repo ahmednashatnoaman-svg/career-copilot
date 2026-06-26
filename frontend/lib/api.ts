@@ -55,7 +55,6 @@ export async function uploadDocument(
   file: File
 ): Promise<DocumentResponse> {
   const form = new FormData();
-  form.append("user_id", userId);
   form.append("file", file);
 
   const auth = await getAuthHeaders();
@@ -85,7 +84,6 @@ export async function startRun(
     method: "POST",
     headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({
-      user_id: userId,
       message,
       doc_ids: docIds,
       resume_text: resumeText,
@@ -123,13 +121,10 @@ export async function resumeRun(
  * GET /applications?user_id=<userId>
  */
 export async function listApplications(
-  userId: string
+  _userId?: string
 ): Promise<ApplicationPackage[]> {
-  const url = new URL(`${API_BASE}/applications`);
-  url.searchParams.set("user_id", userId);
   const auth = await getAuthHeaders();
-
-  const res = await fetch(url.toString(), { headers: auth });
+  const res = await fetch(`${API_BASE}/applications`, { headers: auth });
   return handleResponse<ApplicationPackage[]>(res);
 }
 
@@ -141,11 +136,9 @@ import type { RankedMatch } from "./types";
  * List ranked job matches for a user.
  * GET /matches?user_id=<userId>
  */
-export async function listMatches(userId: string): Promise<RankedMatch[]> {
-  const url = new URL(`${API_BASE}/matches`);
-  url.searchParams.set('user_id', userId);
+export async function listMatches(_userId?: string): Promise<RankedMatch[]> {
   const auth = await getAuthHeaders();
-  const res = await fetch(url.toString(), { headers: auth });
+  const res = await fetch(`${API_BASE}/matches`, { headers: auth });
   if (!res.ok) return [];
   return res.json() as Promise<RankedMatch[]>;
 }
@@ -173,7 +166,7 @@ export async function coachingChat(
   const res = await fetch(`${API_BASE}/coaching/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...auth },
-    body: JSON.stringify({ user_id: userId, message, thread_id: threadId, mode, profile }),
+    body: JSON.stringify({ message, thread_id: threadId, mode, profile }),
   });
   return handleResponse<CoachingMessage>(res);
 }
@@ -203,7 +196,7 @@ export async function startInterview(
   const res = await fetch(`${API_BASE}/interviews/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...auth },
-    body: JSON.stringify({ user_id: userId, role, interview_type: interviewType, cv_summary: cvSummary }),
+    body: JSON.stringify({ role, interview_type: interviewType, cv_summary: cvSummary }),
   });
   return handleResponse<InterviewSession>(res);
 }
@@ -247,7 +240,7 @@ export async function tailorCV(
   const res = await fetch(`${API_BASE}/cv/tailor`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...auth },
-    body: JSON.stringify({ user_id: userId, resume_text: resumeText, job_description: jobDescription, job_title: jobTitle, company }),
+    body: JSON.stringify({ resume_text: resumeText, job_description: jobDescription, job_title: jobTitle, company }),
   });
   return handleResponse<TailoredCV>(res);
 }
