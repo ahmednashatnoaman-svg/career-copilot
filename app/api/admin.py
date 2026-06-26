@@ -3,14 +3,43 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.memory.longterm import recall
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Admin gate — only emails listed here may access /admin/* endpoints
+# ---------------------------------------------------------------------------
+
+_ADMIN_EMAILS: frozenset[str] = frozenset(
+    e.strip()
+    for e in os.getenv("ADMIN_EMAILS", "ahmed.nashat.noaman@gmail.com").split(",")
+    if e.strip()
+)
+
+
+def require_admin(request: Request) -> None:
+    """Raise 403 if the authenticated user is not an admin.
+
+    Relies on jwt_auth_middleware already having verified the token and
+    stored the email in request.state.user_email.  When Supabase is not
+    configured (local dev / CI) the middleware skips auth entirely and
+    user_email will be absent — in that case we also skip the admin gate.
+    """
+    email: str = getattr(request.state, "user_email", "")
+    if email and email not in _ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _safe_count(table: str, db) -> int:  # type: ignore[type-arg]
@@ -21,7 +50,12 @@ def _safe_count(table: str, db) -> int:  # type: ignore[type-arg]
         return -1
 
 
-@router.get("/stats")
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
+@router.get("/stats", dependencies=[Depends(require_admin)])
 def get_stats() -> dict[str, Any]:
     """Return system-wide counts and health indicators for the admin dashboard."""
     from app.api.applications import _application_store, _applications_store  # noqa: PLC0415
@@ -58,14 +92,14 @@ def get_stats() -> dict[str, Any]:
     }
 
 
-@router.get("/memory/{user_id}")
+@router.get("/memory/{user_id}", dependencies=[Depends(require_admin)])
 def get_user_memory(user_id: str) -> dict[str, Any]:
     """Return all long-term memory facts stored for a user."""
     facts = recall(user_id)
     return {"user_id": user_id, "facts": facts, "count": len(facts)}
 
 
-@router.delete("/memory/{user_id}/{key}")
+@router.delete("/memory/{user_id}/{key}", dependencies=[Depends(require_admin)])
 def delete_memory_key(user_id: str, key: str) -> dict[str, str]:
     """Delete a single long-term memory key for a user."""
     try:
