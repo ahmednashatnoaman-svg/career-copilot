@@ -10,6 +10,76 @@ from app.agents.coaching.embeddings import EmbeddingService, vector_literal
 from app.agents.coaching.settings import Settings
 
 
+class NullMemory:
+    """No-op memory backend — used when no reachable database is configured.
+
+    All reads return safe empty values; all writes are silent no-ops.  The
+    coaching graph runs normally but without cross-request persistence.
+    """
+
+    def connect(self):
+        return None
+
+    def ping(self) -> bool:
+        return False
+
+    def ensure_schema(self) -> None:
+        pass
+
+    def upsert_user_profile(self, user_id: str, profile: dict) -> dict:
+        return profile or {}
+
+    def get_user_profile(self, user_id: str) -> dict:
+        return {}
+
+    def add_message(self, user_id, thread_id, role, content, metadata=None) -> None:
+        pass
+
+    def recent_messages(self, user_id, thread_id, limit=12) -> list:
+        return []
+
+    def close_active_interviews(self, user_id, thread_id, status="replaced") -> None:
+        pass
+
+    def create_interview_session(self, user_id, thread_id, target_role, interview_type, level, current_question, max_questions) -> dict:
+        return {
+            "id": 0,
+            "user_id": user_id,
+            "thread_id": thread_id,
+            "target_role": target_role,
+            "interview_type": interview_type,
+            "level": level,
+            "current_question": current_question,
+            "question_number": 1,
+            "max_questions": max_questions,
+            "status": "active",
+        }
+
+    def active_interview(self, user_id, thread_id) -> dict | None:
+        return None
+
+    def update_interview_session(self, session_id, **kwargs) -> None:
+        pass
+
+    def add_interview_turn(self, session_id, question_number, question, answer, feedback, score) -> None:
+        pass
+
+    def interview_turns(self, session_id) -> list:
+        return []
+
+    def store_career_plan(self, user_id, thread_id, plan_type, target_role, content) -> None:
+        pass
+
+    def add_memory_item(self, user_id, thread_id, kind, content, metadata=None) -> None:
+        pass
+
+    def search_memory(self, user_id, query, limit=6) -> list:
+        return []
+
+    def clear_session(self, user_id, thread_id, graph_thread_id) -> dict:
+        return {}
+
+
 class PostgresMemory:
     def __init__(self, settings: Settings, embeddings: EmbeddingService) -> None:
         self.settings = settings
