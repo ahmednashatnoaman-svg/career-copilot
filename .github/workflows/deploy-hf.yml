@@ -8,6 +8,7 @@ on:
       - "backend/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "Dockerfile"
       - ".github/workflows/deploy-hf.yml"
 
 concurrency:
@@ -89,7 +90,7 @@ jobs:
 
           def is_backend(path: str) -> bool:
               p = Path(path)
-              return p.parts[0] in ("app", "backend") or path in ("pyproject.toml", "uv.lock")
+              return p.parts[0] in ("app", "backend") or path in ("pyproject.toml", "uv.lock", "Dockerfile")
 
           to_upload = [f for f in changed if is_backend(f) and Path(f).is_file()]
 
