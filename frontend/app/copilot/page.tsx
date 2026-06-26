@@ -126,11 +126,11 @@ export default function CopilotPage() {
       try {
         const decisionObj: Record<string, unknown> = decision.approved
           ? {
-              approved: true,
-              ...(decision.editedPackage
-                ? { edited_package: decision.editedPackage }
-                : {}),
-            }
+            approved: true,
+            ...(decision.editedPackage
+              ? { edited_package: decision.editedPackage }
+              : {}),
+          }
           : { approved: false };
 
         await resumeRun(threadId, decisionObj);
@@ -264,17 +264,17 @@ export default function CopilotPage() {
                 {(copilotStatus === "done" ||
                   copilotStatus === "error" ||
                   copilotStatus === "awaiting-approval") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleReset}
-                    className="gap-1.5 text-muted-foreground h-8"
-                    aria-label="Start a new conversation"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    New
-                  </Button>
-                )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReset}
+                      className="gap-1.5 text-muted-foreground h-8"
+                      aria-label="Start a new conversation"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      New
+                    </Button>
+                  )}
                 <Button
                   size="sm"
                   onClick={handleSubmit}

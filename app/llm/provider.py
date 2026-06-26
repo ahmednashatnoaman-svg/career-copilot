@@ -30,11 +30,12 @@ from app.core.config import get_settings
 Task = Literal["reason", "fast"]
 
 
-def _build_groq(model: str, temperature: float, max_tokens: int | None) -> BaseChatModel:
+def _build_groq(model: str, temperature: float, max_tokens: int | None, api_key: str | None = None) -> BaseChatModel:
     from langchain_groq import ChatGroq
 
     s = get_settings()
-    kwargs: dict = {"model": model, "temperature": temperature, "api_key": s.groq_api_key}
+    key = api_key or s.groq_api_key
+    kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     return ChatGroq(**kwargs)
@@ -87,8 +88,16 @@ def get_llm(
 
     fallbacks: list[BaseChatModel] = []
 
+    groq_keys = [k for k in [s.groq_api_key, s.groq_api_key_1, s.groq_api_key_2, s.groq_api_key_3] if k]
+
     if s.llm_provider == "groq":
-        primary = _build_groq(groq_model, temperature, max_tokens)
+        if not groq_keys:
+            raise ValueError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
+        
+        primary = _build_groq(groq_model, temperature, max_tokens, api_key=groq_keys[0])
+        for key in groq_keys[1:]:
+            fallbacks.append(_build_groq(groq_model, temperature, max_tokens, api_key=key))
+            
         if s.google_api_key:
             fallbacks.append(_build_google(g_model, temperature, max_tokens))
         if s.azure_openai_api_key and s.azure_openai_endpoint:
@@ -96,15 +105,15 @@ def get_llm(
 
     elif s.llm_provider == "google":
         primary = _build_google(g_model, temperature, max_tokens)
-        if s.groq_api_key:
-            fallbacks.append(_build_groq(groq_model, temperature, max_tokens))
+        for key in groq_keys:
+            fallbacks.append(_build_groq(groq_model, temperature, max_tokens, api_key=key))
         if s.azure_openai_api_key and s.azure_openai_endpoint:
             fallbacks.append(_build_azure(temperature, max_tokens))
 
     elif s.llm_provider == "azure":
         primary = _build_azure(temperature, max_tokens)
-        if s.groq_api_key:
-            fallbacks.append(_build_groq(groq_model, temperature, max_tokens))
+        for key in groq_keys:
+            fallbacks.append(_build_groq(groq_model, temperature, max_tokens, api_key=key))
         if s.google_api_key:
             fallbacks.append(_build_google(g_model, temperature, max_tokens))
 

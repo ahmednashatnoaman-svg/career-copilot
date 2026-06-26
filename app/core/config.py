@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     llm_model: str = "llama-3.3-70b-versatile"
     llm_model_fast: str = "llama-3.1-8b-instant"
     groq_api_key: str | None = None
+    groq_api_key_1: str | None = None
+    groq_api_key_2: str | None = None
+    groq_api_key_3: str | None = None
     # Google Gemini model names (used as primary when llm_provider=google, else as fallback)
     # gemini-2.0-flash is deprecated as of 2026.
     # gemini-3.1-flash-lite = most cost-efficient (unlimited free tokens).
