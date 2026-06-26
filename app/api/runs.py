@@ -6,11 +6,10 @@ import json
 import logging
 import os
 import uuid
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
 from fastapi import APIRouter, Body, Request
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -183,14 +182,14 @@ def _sse_frame(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
-def _stream_graph(
+async def _stream_graph(
     graph: Any,
     initial_state: dict,
     config: dict,
-) -> Generator[str, None, None]:
-    """Iterate graph.stream() synchronously and yield SSE frames."""
+) -> AsyncGenerator[str, None]:
+    """Iterate graph.astream() asynchronously and yield SSE frames."""
     try:
-        for chunk in graph.stream(initial_state, config=config, stream_mode="updates"):
+        async for chunk in graph.astream(initial_state, config=config, stream_mode="updates"):
             for node_name, state_delta in chunk.items():
                 if node_name == "__interrupt__":
                     raw = state_delta if hasattr(state_delta, "__iter__") else [state_delta]
@@ -208,11 +207,11 @@ def _stream_graph(
         yield _SSE_DONE
 
 
-def _stream_graph_with_interrupt(
+async def _stream_graph_with_interrupt(
     graph: Any,
     initial_state: dict,
     config: dict,
-) -> Generator[str, None, None]:
+) -> AsyncGenerator[str, None]:
     """Wrap _stream_graph and catch LangGraph GraphInterrupt exceptions."""
     try:
         from langgraph.errors import GraphInterrupt
@@ -221,7 +220,8 @@ def _stream_graph_with_interrupt(
         _GraphInterrupt = None  # type: ignore[assignment,misc]
 
     try:
-        yield from _stream_graph(graph, initial_state, config)
+        async for frame in _stream_graph(graph, initial_state, config):
+            yield frame
     except Exception as exc:  # noqa: BLE001
         if _GraphInterrupt is not None and isinstance(exc, _GraphInterrupt):
             interrupts = exc.args[0] if exc.args else ()
@@ -293,15 +293,8 @@ async def stream_run(
     }
     config = {"configurable": {"thread_id": thread_id}}
 
-    async def _generate():
-        frames: list[str] = await run_in_threadpool(
-            lambda: list(_stream_graph_with_interrupt(graph, initial_state, config))
-        )
-        for frame in frames:
-            yield frame
-
     return StreamingResponse(
-        _generate(),
+        _stream_graph_with_interrupt(graph, initial_state, config),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -331,8 +324,6 @@ async def resume_run(
 
     cmd = Command(resume=decision)
 
-    frames: list[str] = await run_in_threadpool(
-        lambda: list(_stream_graph_with_interrupt(graph, cmd, config))
-    )
+    frames: list[str] = [frame async for frame in _stream_graph_with_interrupt(graph, cmd, config)]
 
     return {"status": "resumed", "frames": frames}
