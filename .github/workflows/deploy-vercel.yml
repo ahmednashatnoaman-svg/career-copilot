@@ -102,11 +102,9 @@ jobs:
         run: npm run build
         env:
           VERCEL: "1"
-          # Use a dedicated staging backend for PR previews to avoid mixing test
-          # traffic with the production database.  Set STAGING_API_BASE in the
-          # GitHub repo variables when a staging HF Space is available; until
-          # then it falls back to the production URL (known limitation).
           NEXT_PUBLIC_API_BASE: ${{ vars.STAGING_API_BASE || 'https://AhmedNashat1-career-copilot-api.hf.space' }}
+          NEXT_PUBLIC_SUPABASE_URL: https://tsoseawjafhgcbysbokh.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Deploy preview
         id: deploy
@@ -179,6 +177,8 @@ jobs:
         env:
           VERCEL: "1"
           NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
+          NEXT_PUBLIC_SUPABASE_URL: https://tsoseawjafhgcbysbokh.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Deploy to production
         id: deploy
