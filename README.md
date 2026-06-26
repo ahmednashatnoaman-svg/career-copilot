@@ -81,8 +81,7 @@ HITL gate:  graph raises NodeInterrupt  →  run status = "awaiting_approval"
 | **Orchestration** | LangGraph 0.2 (supervisor graph, HITL interrupt/resume, sub-graphs) |
 | **LLM — primary** | Groq `llama-3.3-70b-versatile` |
 | **LLM — fast/cheap** | Groq `llama-3.1-8b-instant` |
-| **LLM — fallback** | Azure OpenAI `gpt-4.1-mini` |
-| **Embeddings** | Azure OpenAI `text-embedding-3-small` · fastembed (local) |
+| **Embeddings** | fastembed (local) |
 | **Web search** | Tavily Search API |
 | **Job sources** | Adzuna · Glassdoor · LinkedIn · Wuzzuf · Bayt · Upwork |
 | **Vector DB** | Qdrant Cloud |
@@ -166,14 +165,10 @@ npm run dev
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Postgres DSN — enables LangGraph checkpointer + coaching memory |
-| `AZURE_OPENAI_API_KEY` | Fallback LLM + embeddings |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI resource URL |
-| `AZURE_OPENAI_DEPLOYMENT_NAME` | Chat model deployment (e.g. `gpt-4.1-mini`) |
-| `AZURE_OPENAI_EMBEDDING_ENDPOINT` | Embedding resource URL |
-| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME` | Embedding deployment (e.g. `text-embedding-3-small`) |
+
 | `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | Adzuna job search |
 | `GITHUB_TOKEN` | Portfolio analysis via GitHub REST API |
-| `LLM_PROVIDER` | `groq` (default) or `azure` |
+| `LLM_PROVIDER` | `groq` (default) or `google` |
 | `LLM_MODEL` | Override primary model name |
 | `LLM_MODEL_FAST` | Override fast model name |
 
@@ -375,13 +370,13 @@ career-copilot/
 │   │   ├── ingest.py             # PDF/DOCX/image → chunks → Qdrant
 │   │   ├── chunking.py           # Token-aware text splitter
 │   │   ├── retriever.py          # Qdrant semantic search
-│   │   ├── embeddings.py         # fastembed + Azure fallback
+│   │   ├── embeddings.py         # fastembed
 │   │   └── store.py              # Qdrant collection management
 │   ├── memory/
 │   │   ├── checkpointer.py       # LangGraph Postgres checkpointer
 │   │   └── longterm.py           # Long-term memory store
 │   ├── llm/
-│   │   └── provider.py           # Multi-provider LLM router (Groq / Azure)
+│   │   └── provider.py           # Multi-provider LLM router (Groq / Google)
 │   ├── services/
 │   │   ├── supabase_db.py        # Supabase data operations
 │   │   └── session.py            # Session management

@@ -73,7 +73,7 @@ QDRANT_API_KEY=your-qdrant-api-key
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `FRONTEND_URL` (your Vercel URL, set after Step 4)
-   - `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`
+
    - `LANGCHAIN_API_KEY`
 5. Click **Create Web Service**
 6. Copy your Render URL: `https://career-copilot-api.onrender.com`

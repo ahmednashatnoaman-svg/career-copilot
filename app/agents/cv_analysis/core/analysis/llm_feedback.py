@@ -12,7 +12,7 @@ from groq import Groq
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.core.config import settings
+from app.core.config import get_settings
 
 _client: Groq | None = None
 
@@ -20,7 +20,7 @@ _client: Groq | None = None
 def get_client() -> Groq:
     global _client
     if _client is None:
-        _client = Groq(api_key=settings.groq_api_key)
+        _client = Groq(api_key=get_settings().groq_api_key)
     return _client
 
 
@@ -99,7 +99,7 @@ Guidelines:
 def _call_groq(*, system_prompt: str, user_content: str) -> _LLMOutput:
     client = get_client()
     completion = client.chat.completions.create(
-        model=settings.groq_model,
+        model=get_settings().llm_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},

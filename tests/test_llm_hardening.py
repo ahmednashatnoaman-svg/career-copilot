@@ -91,9 +91,11 @@ class TestProviderFallback:
         """When only primary key is set, no fallback wrapping occurs."""
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+        monkeypatch.setenv("GROQ_API_KEY_1", "")
+        monkeypatch.setenv("GROQ_API_KEY_2", "")
+        monkeypatch.setenv("GROQ_API_KEY_3", "")
         # setenv("", ...) overrides .env file value; delenv does not
         monkeypatch.setenv("GOOGLE_API_KEY", "")
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
@@ -136,7 +138,6 @@ class TestExistingProviderRegression:
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
         monkeypatch.setenv("GOOGLE_API_KEY", "")
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
@@ -151,7 +152,6 @@ class TestExistingProviderRegression:
         monkeypatch.setenv("LLM_PROVIDER", "groq")
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
         monkeypatch.setenv("GOOGLE_API_KEY", "")
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "")
 
         from app.core.config import get_settings
         get_settings.cache_clear()
