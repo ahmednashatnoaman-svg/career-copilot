@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Python: lint + unit/smoke tests ───────────────────────────
   backend:
     name: Lint & Test (Python 3.12)
     runs-on: ubuntu-latest
@@ -35,15 +36,17 @@ jobs:
       - name: Pytest (unit + smoke; integration auto-skips without INFRA_UP)
         run: uv run pytest -q
         env:
-          # No real provider keys needed: provider tests use a fake key and assert
-          # construction only; agent smoke tests stub the LLM. RAG/embedding tests
-          # download the small fastembed model over the runner's network.
+          # CI placeholders — tests stub the LLM; integration tests skip without real infra
           LLM_PROVIDER: groq
           GROQ_API_KEY: ci-placeholder-not-used
 
+  # ── Next.js: vitest + production build ────────────────────────
   frontend:
-    name: Test & Build (Next.js)
+    name: Test & Build (Next.js 15)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -55,38 +58,51 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: cd frontend && npm ci
+        run: npm ci
 
       - name: Vitest
-        run: cd frontend && npm test
+        run: npm test
 
       - name: Next.js build
-        run: cd frontend && npm run build
+        run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
+          # Set API base so build-time references resolve (fallback: localhost:8000)
+          NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
 
+  # ── Container image build validation (main only) ──────────────
   container-build:
     name: Build container images
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
-        uses: redhat-actions/buildah-build@v2
+        uses: docker/build-push-action@v6
         with:
-          image: career-copilot-backend
-          tags: latest
-          containerfiles: |
-            ./backend/Containerfile
           context: .
+          file: ./backend/Containerfile
+          push: false
+          tags: career-copilot-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build frontend image
-        uses: redhat-actions/buildah-build@v2
+        uses: docker/build-push-action@v6
         with:
-          image: career-copilot-frontend
-          tags: latest
-          containerfiles: |
-            ./frontend/Containerfile
           context: ./frontend
+          file: ./frontend/Containerfile
+          push: false
+          tags: career-copilot-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon-key-for-ci-build
+            NEXT_PUBLIC_API_BASE=https://AhmedNashat1-career-copilot-api.hf.space
