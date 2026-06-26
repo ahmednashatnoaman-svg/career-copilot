@@ -5,7 +5,7 @@ import copy
 import json
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
 from app.agents.coaching.settings import Settings
 from app.llm.provider import get_llm
@@ -67,6 +67,46 @@ class LLMService:
             self._mark_fallback("LLM response was not valid JSON.")
             return copy.deepcopy(fallback)
         return parsed
+
+    def text_with_tools(self, system: str, user: str, fallback: str, tools: list) -> str:
+        """Run the LLM with tool bindings and execute any tool calls it makes.
+
+        The LLM may call zero, one, or multiple tools (e.g. remember_fact).
+        Tool results are fed back; the final text response is returned.
+        Falls back to ``text()`` when tools cannot be bound (e.g. no tool-call support).
+        """
+        if not self._configured:
+            self._mark_fallback("Groq API key is not configured.")
+            return fallback
+        try:
+            chat = self._get_chat().bind_tools(tools)
+            messages: list = [SystemMessage(content=system), HumanMessage(content=user)]
+            # Allow up to 3 tool-call rounds to avoid infinite loops
+            for _ in range(3):
+                result = chat.invoke(messages)
+                tool_calls = getattr(result, "tool_calls", None) or []
+                if not tool_calls:
+                    break
+                messages.append(result)
+                for tc in tool_calls:
+                    matched = next((t for t in tools if t.name == tc["name"]), None)
+                    if matched is None:
+                        output = f"Unknown tool: {tc['name']}"
+                    else:
+                        try:
+                            output = str(matched.invoke(tc["args"]))
+                        except Exception as exc:  # noqa: BLE001
+                            output = f"Tool error: {exc}"
+                    messages.append(
+                        ToolMessage(content=output, tool_call_id=tc["id"])
+                    )
+            content = getattr(result, "content", "")
+            if isinstance(content, list):
+                return "\n".join(str(item) for item in content)
+            return str(content).strip() or fallback
+        except Exception as exc:  # noqa: BLE001
+            self._mark_fallback(f"text_with_tools: {type(exc).__name__}: {exc}")
+            return self.text(system, user, fallback)
 
     def _mark_fallback(self, reason: str) -> None:
         self.last_error = reason
