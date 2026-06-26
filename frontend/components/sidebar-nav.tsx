@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Briefcase,
   Mic,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,12 @@ const navItems = [
     label: "Interviews",
     description: "Mock interview practice",
     icon: Mic,
+  },
+  {
+    href: "/admin",
+    label: "Admin",
+    description: "System stats & memory",
+    icon: ShieldCheck,
   },
 ];
 
