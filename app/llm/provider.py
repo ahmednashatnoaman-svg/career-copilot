@@ -1,27 +1,21 @@
-"""LLM provider factory with provider fallback.
+"""LLM provider factory with multi-provider fallback chains.
 
-Returns the primary ``BaseChatModel`` for single-provider setups, or a
-``RunnableWithFallbacks`` when the secondary provider's API key is also
-configured.  The ``RunnableWithFallbacks`` wrapper transparently delegates
-``.with_structured_output()``, ``.invoke()``, and other Runnable methods to
-the primary model and falls back to the secondary on any error (rate-limits,
-network timeouts, etc.).
-
-Retry
------
-Tenacity-style retries are applied at the *structured-output chain* level by
-callers that need them (``chain.with_retry(...)``).  Applying ``with_retry``
-directly to the *base* model would break ``.with_structured_output()`` because
-``RunnableRetry`` does not delegate that method.  The fallback wrapper already
-handles the most important free-tier risk (groq ↔ gemini provider switching),
-so per-call retry is a secondary concern handled in individual nodes if needed.
+Provider priority when all three keys are configured:
+  LLM_PROVIDER=groq  → Llama (Groq) → Gemini (Google) → Azure
+  LLM_PROVIDER=google → Gemini → Llama (Groq) → Azure
+  LLM_PROVIDER=azure  → Azure → Llama (Groq) → Gemini
 
 Fast-model routing
 ------------------
-``task="fast"``  → Llama 3.1 8B (groq) or gemini-2.0-flash (google) — for
-                   routing / extraction / classification.
-``task="reason"`` → Llama 3.3 70B (groq) or gemini-2.0-flash (google) — for
-                    judgment / planning / critique.
+task="fast"   → llm_model_fast (Groq) / google_model_fast (Google) / azure deployment
+task="reason" → llm_model (Groq) / google_model (Google) / azure deployment
+
+Default free-tier Gemini models
+--------------------------------
+google_model      = "gemini-2.0-flash"       — 15 RPM / 1500 RPD free tier
+google_model_fast = "gemini-2.0-flash-lite"  — 30 RPM / 1500 RPD free tier (highest RPM)
+
+Override via env vars GOOGLE_MODEL and GOOGLE_MODEL_FAST if newer models are available.
 """
 
 from __future__ import annotations
@@ -46,12 +40,11 @@ def _build_groq(model: str, temperature: float, max_tokens: int | None) -> BaseC
     return ChatGroq(**kwargs)
 
 
-def _build_google(task: Task, temperature: float, max_tokens: int | None) -> BaseChatModel:
+def _build_google(model: str, temperature: float, max_tokens: int | None) -> BaseChatModel:
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     s = get_settings()
-    gmodel = "gemini-2.0-flash"
-    kwargs: dict = {"model": gmodel, "temperature": temperature, "api_key": s.google_api_key}
+    kwargs: dict = {"model": model, "temperature": temperature, "api_key": s.google_api_key}
     if max_tokens is not None:
         kwargs["max_output_tokens"] = max_tokens
     return ChatGoogleGenerativeAI(**kwargs)
@@ -84,35 +77,38 @@ def get_llm(
 ) -> BaseChatModel | Runnable:
     """Return a LangChain chat model for the given task tier.
 
-    When both provider keys are present, wraps the primary model with a
-    ``RunnableWithFallbacks`` so the secondary provider is used transparently
-    on any primary error.  The returned object still exposes
-    ``.with_structured_output()``, ``.invoke()``, etc.
+    Wraps the primary model with ``RunnableWithFallbacks`` when secondary /
+    tertiary provider keys are present — up to a 3-provider chain.
     """
     s = get_settings()
-    model_name = s.llm_model_fast if task == "fast" else s.llm_model
+
+    groq_model = s.llm_model_fast if task == "fast" else s.llm_model
+    g_model = s.google_model_fast if task == "fast" else s.google_model
+
+    fallbacks: list[BaseChatModel] = []
 
     if s.llm_provider == "groq":
-        primary = _build_groq(model_name, temperature, max_tokens)
+        primary = _build_groq(groq_model, temperature, max_tokens)
         if s.google_api_key:
-            secondary = _build_google(task, temperature, max_tokens)
-            return primary.with_fallbacks([secondary])
-        return primary
+            fallbacks.append(_build_google(g_model, temperature, max_tokens))
+        if s.azure_openai_api_key and s.azure_openai_endpoint:
+            fallbacks.append(_build_azure(temperature, max_tokens))
 
-    if s.llm_provider == "google":
-        primary = _build_google(task, temperature, max_tokens)
+    elif s.llm_provider == "google":
+        primary = _build_google(g_model, temperature, max_tokens)
         if s.groq_api_key:
-            groq_model = s.llm_model_fast if task == "fast" else s.llm_model
-            secondary = _build_groq(groq_model, temperature, max_tokens)
-            return primary.with_fallbacks([secondary])
-        return primary
+            fallbacks.append(_build_groq(groq_model, temperature, max_tokens))
+        if s.azure_openai_api_key and s.azure_openai_endpoint:
+            fallbacks.append(_build_azure(temperature, max_tokens))
 
-    if s.llm_provider == "azure":
+    elif s.llm_provider == "azure":
         primary = _build_azure(temperature, max_tokens)
         if s.groq_api_key:
-            groq_model = s.llm_model_fast if task == "fast" else s.llm_model
-            secondary = _build_groq(groq_model, temperature, max_tokens)
-            return primary.with_fallbacks([secondary])
-        return primary
+            fallbacks.append(_build_groq(groq_model, temperature, max_tokens))
+        if s.google_api_key:
+            fallbacks.append(_build_google(g_model, temperature, max_tokens))
 
-    raise ValueError(f"Unsupported LLM_PROVIDER: {s.llm_provider!r}")
+    else:
+        raise ValueError(f"Unsupported LLM_PROVIDER: {s.llm_provider!r}")
+
+    return primary.with_fallbacks(fallbacks) if fallbacks else primary
