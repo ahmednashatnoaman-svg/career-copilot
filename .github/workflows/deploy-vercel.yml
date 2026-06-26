@@ -24,6 +24,9 @@ jobs:
   test-build:
     name: Test & Build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -35,14 +38,13 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: cd frontend && npm ci
+        run: npm ci
 
       - name: Vitest
-        run: cd frontend && npm test
+        run: npm test
 
       - name: Next.js build (Vercel mode — no standalone output)
-        run: cd frontend && npm run build
-        # NEXT_OUTPUT is intentionally NOT set here — Vercel handles its own packaging
+        run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
@@ -55,6 +57,9 @@ jobs:
     if: github.event_name == 'pull_request'
     environment:
       name: preview
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -67,17 +72,18 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
+        working-directory: .
 
       - name: Pull Vercel environment (preview)
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build for Vercel
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy preview
         id: deploy
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend)
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
@@ -100,6 +106,9 @@ jobs:
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -112,17 +121,18 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
+        working-directory: .
 
       - name: Pull Vercel environment (production)
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build for Vercel
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to production
         id: deploy
         run: |
-          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend)
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Print deployment URL
