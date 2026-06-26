@@ -7,4 +7,8 @@ from app.core.config import get_settings
 
 @lru_cache
 def get_qdrant() -> QdrantClient:
-    return QdrantClient(url=get_settings().qdrant_url)
+    settings = get_settings()
+    kwargs: dict = {"url": settings.qdrant_url}
+    if settings.qdrant_api_key:
+        kwargs["api_key"] = settings.qdrant_api_key
+    return QdrantClient(**kwargs)
