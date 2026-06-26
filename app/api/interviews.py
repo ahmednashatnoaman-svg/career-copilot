@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import uuid
-
 import logging
+import uuid
 
 from fastapi import APIRouter, Body, HTTPException
 
@@ -146,7 +145,7 @@ async def answer_question(
     """Submit an answer. Loads and updates session from Supabase."""
     session = _load_session(session_id)
     if not session:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session["messages"].append({"role": "user", "content": answer})
 
