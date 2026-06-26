@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
@@ -36,7 +37,7 @@ class ApplicationStatus(enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -50,7 +51,7 @@ class User(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     content: Mapped[str | None] = mapped_column(Text)
@@ -64,7 +65,7 @@ class Document(Base):
 class Job(Base):
     __tablename__ = "jobs"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     company: Mapped[str | None] = mapped_column(String(512))
     url: Mapped[str | None] = mapped_column(Text)
@@ -80,7 +81,7 @@ class Job(Base):
 class Match(Base):
     __tablename__ = "matches"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     job_id: Mapped[str] = mapped_column(_UUID, ForeignKey("jobs.id"), nullable=False)
     score: Mapped[float | None] = mapped_column(nullable=True)
@@ -94,7 +95,7 @@ class Match(Base):
 class Application(Base):
     __tablename__ = "applications"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     job_id: Mapped[str] = mapped_column(_UUID, ForeignKey("jobs.id"), nullable=False)
     status: Mapped[ApplicationStatus] = mapped_column(
@@ -114,7 +115,7 @@ class Application(Base):
 class Run(Base):
     __tablename__ = "runs"
 
-    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     thread_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str | None] = mapped_column(String(64))
