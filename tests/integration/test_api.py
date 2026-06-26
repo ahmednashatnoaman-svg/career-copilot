@@ -155,18 +155,24 @@ def test_list_applications_empty(client):
 
 
 def test_list_applications_filtered(client):
-    """GET /applications returns only records matching user_id."""
-    from app.api.applications import seed_applications
+    """GET /applications returns only records for the current authenticated user."""
+    from app.api.applications import get_current_user_id, seed_applications
+    from app.main import app
 
     seed_applications([
         {"id": 1, "user_id": "user-1", "status": "APPROVED"},
         {"id": 2, "user_id": "user-2", "status": "DRAFT"},
     ])
-    r = client.get("/applications", params={"user_id": "user-1"})
-    assert r.status_code == 200
-    body = r.json()
-    assert len(body) == 1
-    assert body[0]["user_id"] == "user-1"
+    # Simulate an authenticated user by overriding the user_id dependency
+    app.dependency_overrides[get_current_user_id] = lambda: "user-1"
+    try:
+        r = client.get("/applications")
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body) == 1
+        assert body[0]["user_id"] == "user-1"
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
 
 
 def test_resume_run(client):
