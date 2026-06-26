@@ -13,9 +13,9 @@ class TestRetrieve:
         """retrieve() should wrap store.query results into evidence dicts with source="rag"."""
         # Arrange: mock store.query to return canned hits
         canned_hits = [
-            {"text": "Hit 1 text", "score": 0.95, "doc_id": "doc_123"},
-            {"text": "Hit 2 text", "score": 0.87, "doc_id": "doc_456"},
-            {"text": "Hit 3 text", "score": 0.72, "doc_id": "doc_789"},
+            {"text": "Hit 1 text", "score": 0.95, "doc_id": "doc_123", "chunk_index": 0, "filename": "resume.pdf"},
+            {"text": "Hit 2 text", "score": 0.87, "doc_id": "doc_456", "chunk_index": 1, "filename": "resume.pdf"},
+            {"text": "Hit 3 text", "score": 0.72, "doc_id": "doc_789", "chunk_index": 2, "filename": ""},
         ]
 
         mock_query = MagicMock(return_value=canned_hits)
@@ -30,11 +30,13 @@ class TestRetrieve:
         # Assert: result is a list of 3 dicts
         assert len(result) == 3
 
-        # Assert: each dict has text, score, doc_id, and source="rag"
+        # Assert: each dict has text, score, doc_id, citation metadata, and source="rag"
         for i, evidence in enumerate(result):
             assert evidence["text"] == canned_hits[i]["text"]
             assert evidence["score"] == canned_hits[i]["score"]
             assert evidence["doc_id"] == canned_hits[i]["doc_id"]
+            assert evidence["chunk_index"] == canned_hits[i]["chunk_index"]
+            assert evidence["filename"] == canned_hits[i]["filename"]
             assert evidence["source"] == "rag"
 
     def test_retrieve_respects_top_k_parameter(self, monkeypatch):
@@ -90,9 +92,10 @@ class TestIngestDocument:
             "This is test content to be chunked."
         )
 
-        # Assert: upsert_chunks was called with user_id, doc_id, and chunks
+        # Assert: upsert_chunks called with user_id, doc_id, chunks, and filename
+        # (filename=None when only plain text is provided — no file source)
         mock_upsert_chunks.assert_called_once_with(
-            user_id="user_001", doc_id="doc_001", chunks=["chunk1", "chunk2", "chunk3"]
+            user_id="user_001", doc_id="doc_001", chunks=["chunk1", "chunk2", "chunk3"], filename=None
         )
 
         # Assert: returns the chunk count
