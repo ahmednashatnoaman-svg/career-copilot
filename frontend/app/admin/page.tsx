@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, getAuthHeaders } from "@/lib/api";
 import {
   Database,
   Users,
@@ -79,7 +79,8 @@ export default function AdminPage() {
     setLoadingStats(true);
     setStatsError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/stats`);
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/admin/stats`, { headers: auth });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       setStats(await res.json());
     } catch (err) {
@@ -94,8 +95,10 @@ export default function AdminPage() {
     setLoadingMemory(true);
     setMemoryError(null);
     try {
+      const auth = await getAuthHeaders();
       const res = await fetch(
-        `${API_BASE}/admin/memory/${encodeURIComponent(memoryUserId.trim())}`
+        `${API_BASE}/admin/memory/${encodeURIComponent(memoryUserId.trim())}`,
+        { headers: auth }
       );
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       setMemory(await res.json());
@@ -111,9 +114,10 @@ export default function AdminPage() {
     if (!memory) return;
     setDeletingKey(key);
     try {
+      const auth = await getAuthHeaders();
       const res = await fetch(
         `${API_BASE}/admin/memory/${encodeURIComponent(memory.user_id)}/${encodeURIComponent(key)}`,
-        { method: "DELETE" }
+        { method: "DELETE", headers: auth }
       );
       if (!res.ok) throw new Error(`${res.status}`);
       setMemory((prev) => {
