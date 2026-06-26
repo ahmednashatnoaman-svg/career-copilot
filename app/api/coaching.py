@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 router = APIRouter(prefix="/coaching", tags=["coaching"])
 
 
 @router.post("/chat")
 async def coaching_chat(
-    user_id: str = Body(...),
+    request: Request,
     message: str = Body(...),
     thread_id: str = Body(None),
     mode: str = Body("general"),
@@ -29,6 +29,7 @@ async def coaching_chat(
     Returns:
         JSON with ``thread_id``, ``response``, and ``mode``.
     """
+    user_id: str = getattr(request.state, "user_id", "")
     if not thread_id:
         thread_id = str(uuid.uuid4())
 
