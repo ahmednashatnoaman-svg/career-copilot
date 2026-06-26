@@ -201,6 +201,11 @@ async def _stream_graph(
                     return
                 else:
                     yield _sse_frame("node", {"node": node_name, "data": state_delta})
+                    
+                    if node_name == "aggregate" and isinstance(state_delta, dict):
+                        final_answer = state_delta.get("final_answer")
+                        if final_answer:
+                            yield _sse_frame("token", {"token": final_answer})
     except Exception as exc:  # noqa: BLE001
         yield _sse_frame("error", {"detail": str(exc)})
     finally:
