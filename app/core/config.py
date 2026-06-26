@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # datastores
     database_url: str = "postgresql://career:career@127.0.0.1:5433/career"
     qdrant_url: str = "http://127.0.0.1:6333"
+    qdrant_api_key: str | None = None
 
     # Supabase
     supabase_url: str | None = None
