@@ -97,7 +97,7 @@ async def list_matches(request: Request):
 
 
 @router.post("/")
-async def save_user_matches(request: Request, matches: list[dict] = Body(...)):
+async def save_user_matches(request: Request, matches: list[dict] = Body(...)):  # noqa: B008
     user_id: str = getattr(request.state, "user_id", "")
     save_matches(user_id, matches)
     return {"saved": len(matches)}
