@@ -80,6 +80,8 @@ jobs:
 
       - name: Build for Vercel
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
 
       - name: Deploy preview
         id: deploy
@@ -129,6 +131,8 @@ jobs:
 
       - name: Build for Vercel
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
 
       - name: Deploy to production
         id: deploy
