@@ -141,7 +141,7 @@ async def start_interview(
 @router.post("/{session_id}/answer")
 async def answer_question(
     session_id: str,
-    answer: str = Body(...),
+    answer: str = Body(..., embed=True),
 ):
     """Submit an answer. Loads and updates session from Supabase."""
     session = _load_session(session_id)
