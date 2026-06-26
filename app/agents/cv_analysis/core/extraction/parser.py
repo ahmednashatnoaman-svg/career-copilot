@@ -25,8 +25,8 @@ import pytesseract
 from docx import Document
 from pdf2image import convert_from_bytes
 from pdf2image.exceptions import PDFInfoNotInstalledError
-from pytesseract import TesseractNotFoundError
 from PIL import Image
+from pytesseract import TesseractNotFoundError
 
 # If a page yields fewer than this many characters via direct text extraction,
 # treat it as likely scanned and fall back to OCR for that page.

@@ -8,7 +8,6 @@ score explainable and consistent across runs.
 """
 
 from app.schemas import ATSCheck
-from app.core.extraction.structure import SECTION_HEADERS
 
 MAX_SCORE = 100
 
