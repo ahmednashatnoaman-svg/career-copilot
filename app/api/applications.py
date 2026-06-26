@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -80,7 +80,8 @@ def seed_applications(records: list[dict]) -> None:
 
 
 @router.get("")
-async def list_applications(user_id: str):
+async def list_applications(request: Request):
+    user_id: str = getattr(request.state, "user_id", "")
     return get_applications(user_id)
 
 
@@ -91,8 +92,9 @@ async def list_applications(user_id: str):
 
 @router.post("")
 async def create_application(
-    user_id: str = Body(...),
+    request: Request,
     application: dict = Body(...),  # noqa: B008
 ):
+    user_id: str = getattr(request.state, "user_id", "")
     save_application(user_id, application)
     return {"status": "saved"}
