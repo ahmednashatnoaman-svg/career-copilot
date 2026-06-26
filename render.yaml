@@ -39,13 +39,21 @@ services:
       # --- Web search ---
       - key: TAVILY_API_KEY
         sync: false
-      # --- Tracing ---
+      # --- Tracing (LangSmith — both new and legacy var names) ---
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: LANGSMITH_ENDPOINT
+        value: https://api.smith.langchain.com
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: LANGSMITH_PROJECT
+        value: CareerFlow
       - key: LANGCHAIN_TRACING_V2
         value: "true"
       - key: LANGCHAIN_API_KEY
         sync: false
       - key: LANGCHAIN_PROJECT
-        value: career-copilot-prod
+        value: CareerFlow
       # --- Datastores ---
       - key: DATABASE_URL
         sync: false           # Supabase Postgres connection string
@@ -55,6 +63,8 @@ services:
         sync: false           # Qdrant Cloud API key (if needed)
       # --- Supabase Auth ---
       - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
