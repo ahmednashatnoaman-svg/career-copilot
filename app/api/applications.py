@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 
 router = APIRouter(prefix="/applications", tags=["applications"])
+
+
+def get_current_user_id(request: Request) -> str:
+    """Extract user_id from JWT-verified middleware state.
+
+    Returns "" when middleware is bypassed (no Supabase in CI / local dev).
+    Overrideable via app.dependency_overrides in tests.
+    """
+    return getattr(request.state, "user_id", "")
+
 
 # ---------------------------------------------------------------------------
 # In-memory fallback (used when Supabase is not configured or in tests)
@@ -80,8 +90,7 @@ def seed_applications(records: list[dict]) -> None:
 
 
 @router.get("")
-async def list_applications(request: Request):
-    user_id: str = getattr(request.state, "user_id", "")
+async def list_applications(user_id: str = Depends(get_current_user_id)):  # noqa: B008
     return get_applications(user_id)
 
 
@@ -92,9 +101,8 @@ async def list_applications(request: Request):
 
 @router.post("")
 async def create_application(
-    request: Request,
+    user_id: str = Depends(get_current_user_id),  # noqa: B008
     application: dict = Body(...),  # noqa: B008
 ):
-    user_id: str = getattr(request.state, "user_id", "")
     save_application(user_id, application)
     return {"status": "saved"}
