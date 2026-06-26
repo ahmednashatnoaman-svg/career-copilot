@@ -16,7 +16,6 @@ import tiktoken
 
 from app.rag.chunking import chunk_text
 
-
 # ---------------------------------------------------------------------------
 # Tokenizer — same encoding family as text-embedding-3-small
 # ---------------------------------------------------------------------------
