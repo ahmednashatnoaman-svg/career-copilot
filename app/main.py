@@ -37,9 +37,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://*.vercel.app",
         os.getenv("FRONTEND_URL", ""),
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -109,27 +109,36 @@ app.include_router(admin_router)
 
 
 def _try_init_supervisor() -> None:
-    """Initialise the supervisor graph with Postgres checkpointer if DB is reachable.
+    """Initialise the supervisor graph.
 
-    Silently skips if the DB is unavailable (e.g. in unit-test environments
-    where INFRA_UP is not set). Tests inject a stub via
-    ``app.api.runs.set_supervisor()``.
+    Tries Postgres checkpointer when DATABASE_URL is configured; falls back to
+    MemorySaver so the supervisor always starts (state won't survive restarts
+    in fallback mode, but agents work normally within a session).
+
+    Silently skips only if the supervisor module itself cannot be imported
+    (e.g. missing optional deps in CI unit-test environments).
     """
-    if os.getenv("INFRA_UP") != "1":
-        return
-
     try:
         from app.api.runs import set_supervisor  # noqa: PLC0415
-        from app.memory.checkpointer import checkpointer_cm  # noqa: PLC0415
         from app.orchestrator.supervisor import build_supervisor  # noqa: PLC0415
 
-        # NOTE: checkpointer_cm is a context manager; we enter it here and
-        # intentionally keep it open for the lifetime of the process.
-        # This is acceptable for a long-running server.
-        _cm = checkpointer_cm()
-        checkpointer = _cm.__enter__()
-        graph = build_supervisor(checkpointer=checkpointer)
+        # Prefer durable Postgres checkpointer when DATABASE_URL is present
+        if os.getenv("DATABASE_URL"):
+            try:
+                from app.memory.checkpointer import checkpointer_cm  # noqa: PLC0415
+
+                _cm = checkpointer_cm()
+                checkpointer = _cm.__enter__()
+                graph = build_supervisor(checkpointer=checkpointer)
+                set_supervisor(graph)
+                return
+            except Exception:  # noqa: BLE001
+                pass  # fall through to MemorySaver
+
+        # Fallback: in-memory checkpointer (no cross-restart persistence)
+        from langgraph.checkpoint.memory import MemorySaver  # noqa: PLC0415
+
+        graph = build_supervisor(checkpointer=MemorySaver())
         set_supervisor(graph)
     except Exception:  # noqa: BLE001
-        # DB unavailable — supervisor remains None; unit tests are unaffected.
         pass
