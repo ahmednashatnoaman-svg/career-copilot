@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Header } from "@/components/header";
-import { Button } from "@/components/ui/button";
-import { API_BASE, getAuthHeaders } from "@/lib/api";
+import { useRouter } from "next/navigation";
 import {
   Database,
   Users,
@@ -18,6 +16,12 @@ import {
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
+import { Header } from "@/components/header";
+import { Button } from "@/components/ui/button";
+import { API_BASE, getAuthHeaders } from "@/lib/api";
+
+const ADMIN_EMAIL =
+  process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "ahmed.nashat.noaman@gmail.com";
 
 interface SystemStats {
   db_connected: boolean;
@@ -63,6 +67,9 @@ function StatCard({
 }
 
 export default function AdminPage() {
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -133,9 +140,28 @@ export default function AdminPage() {
     }
   };
 
+  // Gate: verify session email before rendering anything
   useEffect(() => {
-    fetchStats();
+    (async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase");
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        const email = data.session?.user?.email ?? "";
+        if (email !== ADMIN_EMAIL) {
+          router.replace("/");
+          return;
+        }
+        setIsAdmin(true);
+        fetchStats();
+      } catch {
+        router.replace("/");
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (isAdmin === null) return null; // still checking
 
   return (
     <>
