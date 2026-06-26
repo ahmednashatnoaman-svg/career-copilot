@@ -7,8 +7,8 @@ standard section headers present) — not subjective quality. This keeps the
 score explainable and consistent across runs.
 """
 
-from app.agents.cv_analysis.core.extraction.structure import SECTION_HEADERS
-from app.agents.cv_analysis.schemas import ATSCheck
+from app.schemas import ATSCheck
+from app.core.extraction.structure import SECTION_HEADERS
 
 MAX_SCORE = 100
 
@@ -49,10 +49,9 @@ def score_ats(
 
     # Standard section headers present (excluding the catch-all "header" bucket)
     found_sections = {name for name in detected_sections if name != "header" and detected_sections[name]}
-    recognized = found_sections.intersection(SECTION_HEADERS)
-    if len(recognized) >= 3:
+    if len(found_sections) >= 3:
         earned += CHECKS["has_standard_sections"]
-        passed_checks.append(f"Standard section headers detected ({len(recognized)} found)")
+        passed_checks.append(f"Standard section headers detected ({len(found_sections)} found)")
     else:
         issues.append(
             "Fewer than 3 standard section headers detected (e.g. Experience, Education, "
@@ -68,10 +67,10 @@ def score_ats(
 
     # Length check — too short suggests missing content, too long suggests bloat
     word_count = len(cleaned_text.split())
-    if 250 <= word_count <= 1200:
+    if 200 <= word_count <= 1200:
         earned += CHECKS["reasonable_length"]
         passed_checks.append(f"Resume length is reasonable ({word_count} words)")
-    elif word_count < 250:
+    elif word_count < 200:
         issues.append(f"Resume seems short ({word_count} words) — may be missing detail")
     else:
         issues.append(f"Resume seems long ({word_count} words) — consider tightening for readability")
@@ -90,7 +89,7 @@ def score_ats(
         )
 
     return ATSCheck(
-        score=round((earned / MAX_SCORE) * 100),
+        score=earned,
         issues=issues,
         passed_checks=passed_checks,
     )

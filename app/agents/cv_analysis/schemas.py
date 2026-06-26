@@ -30,7 +30,7 @@ class ATSCheck(BaseModel):
 
 
 class LLMFeedback(BaseModel):
-    """Judgment-based feedback produced by the LLM call."""
+    """Judgment-based feedback produced by the Groq LLM call."""
 
     strengths: list[str] = Field(default_factory=list)
     weaknesses: list[str] = Field(default_factory=list)
