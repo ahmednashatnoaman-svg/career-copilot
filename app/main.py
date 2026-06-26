@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
