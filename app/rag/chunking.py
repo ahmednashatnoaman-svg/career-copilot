@@ -21,6 +21,10 @@ def chunk_text(
     if not text:
         return []
 
+    # Word count — not subword tokens. Actual token count is ~1.3–1.5× higher.
+    # At the default 600-word budget, real token count is ~780–900, still well
+    # within text-embedding-3-small's 8192-token limit. Switch to tiktoken if
+    # smaller embedding models with tighter context windows are added later.
     text_tokens = len(text.split())
 
     # If entire text is smaller than target, return as single chunk
