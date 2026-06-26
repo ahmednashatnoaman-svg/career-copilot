@@ -49,7 +49,7 @@ app.add_middleware(
 # JWT Auth middleware — only active when Supabase is configured
 # ---------------------------------------------------------------------------
 
-_PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+_PUBLIC_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
 
 
 @app.middleware("http")
@@ -86,6 +86,11 @@ async def jwt_auth_middleware(request: Request, call_next):
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "AI Career Copilot API", "docs": "/docs"}
+
 
 app.include_router(health_router)
 app.include_router(documents_router)
