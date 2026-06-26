@@ -18,12 +18,14 @@ def retrieve(user_id: str, query: str, top_k: int = 6) -> list[dict]:
     """
     hits = store.query(user_id=user_id, text=query, top_k=top_k)
 
-    # Wrap each hit with source="rag"
+    # Wrap each hit with source="rag" and citation metadata
     evidence = [
         {
             "text": hit["text"],
             "score": hit["score"],
             "doc_id": hit["doc_id"],
+            "chunk_index": hit.get("chunk_index", 0),
+            "filename": hit.get("filename", ""),
             "source": "rag",
         }
         for hit in hits
