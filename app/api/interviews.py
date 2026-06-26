@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +87,13 @@ def _load_session(session_id: str) -> dict | None:
 
 @router.post("/start")
 async def start_interview(
-    user_id: str = Body(...),
+    request: Request,
     role: str = Body(...),
     interview_type: str = Body("behavioral"),
     cv_summary: str = Body(""),
 ):
     """Start a new mock interview session. Persists to Supabase."""
+    user_id: str = getattr(request.state, "user_id", "")
     session_id = str(uuid.uuid4())
 
     context = f"Candidate background: {cv_summary}" if cv_summary else ""
