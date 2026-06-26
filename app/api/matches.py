@@ -90,13 +90,13 @@ def get_matches(user_id: str) -> list[dict]:
     return _matches_store.get(user_id, [])
 
 
-@router.get("/")
+@router.get("")
 async def list_matches(request: Request):
     user_id: str = getattr(request.state, "user_id", "")
     return get_matches(user_id)
 
 
-@router.post("/")
+@router.post("")
 async def save_user_matches(request: Request, matches: list[dict] = Body(...)):  # noqa: B008
     user_id: str = getattr(request.state, "user_id", "")
     save_matches(user_id, matches)
