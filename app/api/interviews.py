@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Body
+import logging
+
+from fastapi import APIRouter, Body, HTTPException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
@@ -43,8 +47,8 @@ def _save_session(session: dict) -> None:
             ).execute()
             _sessions[session_id] = session
             return
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("_save_session Supabase upsert failed: %s", exc)
     _sessions[session_id] = session
 
 
@@ -197,5 +201,5 @@ async def answer_question(
 async def get_session(session_id: str):
     session = _load_session(session_id)
     if not session:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
     return session
