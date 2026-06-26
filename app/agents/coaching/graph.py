@@ -22,6 +22,7 @@ from app.agents.coaching.prompts import (
 )
 from app.agents.coaching.schemas import ChatRequest, ChatResponse
 from app.agents.coaching.settings import Settings
+from app.memory.longterm import recall, remember
 
 SubIntent = Literal[
     "mock_interview_start",
@@ -178,6 +179,10 @@ class CareerCoachingAgent:
         messages = self.memory.recent_messages(user_id, thread_id, limit=12)
         active_interview = self.memory.active_interview(user_id, thread_id)
         memories = self.memory.search_memory(user_id, state["message"], limit=6)
+        # Inject long-term key-value facts (career goals, preferences) into profile
+        long_term_facts = recall(user_id)
+        if long_term_facts:
+            profile = {**profile, **long_term_facts}
         return {
             "profile": profile,
             "messages": messages,
@@ -828,6 +833,17 @@ class CareerCoachingAgent:
                 metadata={"sub_intent": sub_intent},
             )
             persisted["memory_items"] += 1
+
+        # Persist key facts to long-term store when career plan is generated
+        career_plan = state.get("career_plan_to_store")
+        if career_plan:
+            target_role = career_plan.get("target_role")
+            if target_role:
+                remember(user_id, "target_role", target_role)
+        profile = state.get("profile", {})
+        for fact_key in ("preferred_country", "experience_level", "current_role"):
+            if profile.get(fact_key):
+                remember(user_id, fact_key, profile[fact_key])
 
         return {"memory_updates": {"persisted": True, **persisted}}
 
