@@ -20,8 +20,8 @@ def test_cv_standalone_text(monkeypatch):
     monkeypatch.setattr(
         pipeline, "run_tailored_analysis", pipeline.run_tailored_analysis, raising=True
     )
-    from app.agents.cv_analysis.integration.graph_node import cv_analysis_node
     from app.agents.cv_analysis.core.analysis.llm_feedback import _LLMOutput
+    from app.agents.cv_analysis.integration.graph_node import cv_analysis_node
     monkeypatch.setattr(
         "app.agents.cv_analysis.core.analysis.llm_feedback._call_groq",
         lambda **k: _LLMOutput(
