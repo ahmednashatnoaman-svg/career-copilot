@@ -54,7 +54,7 @@ app.add_middleware(
 # JWT Auth middleware — only active when Supabase is configured
 # ---------------------------------------------------------------------------
 
-_PUBLIC_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
+_PUBLIC_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
 
 
 @app.middleware("http")
