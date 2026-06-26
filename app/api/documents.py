@@ -69,4 +69,22 @@ async def upload_document(
     except Exception as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # Best-effort: persist document metadata to Supabase.
+    # Silently ignored when Supabase is unconfigured or user_id is not a
+    # real Supabase UUID (e.g. "demo-user" used in onboarding).
+    try:
+        from app.services.supabase_db import get_client  # noqa: PLC0415
+
+        db = get_client()
+        if db is not None:
+            db.table("documents").insert(
+                {
+                    "id": doc_id,
+                    "user_id": user_id,
+                    "filename": filename,
+                }
+            ).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
     return {"doc_id": doc_id, "chunks": chunks}
