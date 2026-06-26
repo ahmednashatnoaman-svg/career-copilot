@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { API_BASE } from "./api";
+import { API_BASE, getAuthHeaders } from "./api";
 import type {
   HitlRequest,
   SSEEvent,
@@ -157,9 +157,10 @@ export function useSSE(): UseSSEReturn {
 
       (async () => {
         try {
+          const auth = await getAuthHeaders();
           const res = await fetch(url.toString(), {
             signal: controller.signal,
-            headers: { Accept: "text/event-stream" },
+            headers: { Accept: "text/event-stream", ...auth },
           });
 
           if (!res.ok || !res.body) {
