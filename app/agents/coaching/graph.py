@@ -7,6 +7,7 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.agents.coaching.coaching_tools import COACHING_TOOLS
 from app.agents.coaching.llm import LLMService
 from app.agents.coaching.memory import PostgresMemory
 from app.agents.coaching.observability import get_request_id, log_event
@@ -708,10 +709,14 @@ class CareerCoachingAgent:
             "Based on what you shared, the best next move is to make the goal more concrete, "
             "choose one target role, identify the top 3 missing skills, and turn those into a short weekly plan."
         )
-        response = self.llm.text(
+        # Inject user_id so the LLM can call remember_fact with the correct ID
+        user_context = self._context_prompt(state)
+        user_id_hint = f'\n\nUser ID for memory tools: "{state["user_id"]}"'
+        response = self.llm.text_with_tools(
             ADVICE_SYSTEM,
-            self._context_prompt(state),
+            user_context + user_id_hint,
             fallback,
+            COACHING_TOOLS,
         )
         return {
             "response": response,
