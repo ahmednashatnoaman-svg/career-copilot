@@ -21,7 +21,7 @@ export const API_BASE =
  * Returns { Authorization: "Bearer <token>" } when a Supabase session exists.
  * Returns an empty object when there is no session (public routes / server-side).
  */
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const { createClient } = await import("./supabase");
     const supabase = createClient();
