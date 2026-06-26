@@ -62,6 +62,9 @@ pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q"
+markers = [
+  "slow: tests that load real ML models or external resources",
+]
 
 [tool.uv]
 package = false
