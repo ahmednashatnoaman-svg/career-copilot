@@ -53,6 +53,8 @@ from app.orchestrator.state import CopilotState
 
 def _cv_analysis_wrapper(state: CopilotState) -> dict:
     """Map CopilotState → CVAnalysisInputState and return namespaced output."""
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
     agent_input = {
         "resume_text": state.get("resume_text"),           # type: ignore[attr-defined]
         "resume_file_bytes": state.get("resume_file_bytes"),  # type: ignore[attr-defined]
@@ -60,8 +62,12 @@ def _cv_analysis_wrapper(state: CopilotState) -> dict:
         # Pass user_message as job_description to enable tailored mode when present
         "job_description": state.get("user_message") or None,
     }
-    result = cv_analysis_node(agent_input)  # type: ignore[arg-type]
-    return _advance_plan(state, result)
+    try:
+        result = cv_analysis_node(agent_input)  # type: ignore[arg-type]
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("cv_analysis agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"cv_analysis": {}})
 
 
 def _rag_wrapper(state: CopilotState) -> dict:
@@ -99,8 +105,14 @@ def _market_wrapper(state: CopilotState) -> dict:
         preferred_locations=[],
         work_preferences=WorkPreferences(),
     )
-    result = market_node({"market_input": market_input})
-    return _advance_plan(state, result)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        result = market_node({"market_input": market_input})
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("market agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"market": "Market analysis is currently unavailable."})
 
 
 def _coaching_wrapper(state: CopilotState) -> dict:
@@ -154,8 +166,14 @@ def _coaching_wrapper(state: CopilotState) -> dict:
 
 def _matching_wrapper(state: CopilotState) -> dict:
     """Invoke matching_node and advance the plan."""
-    result = matching_node(state)
-    return _advance_plan(state, result)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        result = matching_node(state)
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("matching agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"matching": []})
 
 
 def _portfolio_wrapper(state: CopilotState) -> dict:
@@ -167,14 +185,26 @@ def _portfolio_wrapper(state: CopilotState) -> dict:
     It would raise RuntimeError only when called from within an already-running
     event loop — that is not the case in this execution path.
     """
-    result = asyncio.run(portfolio_node(state))
-    return _advance_plan(state, result)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        result = asyncio.run(portfolio_node(state))
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("portfolio agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"portfolio": {}})
 
 
 def _career_planning_wrapper(state: CopilotState) -> dict:
     """Invoke career_planning_node and advance the plan."""
-    result = career_planning_node(state)
-    return _advance_plan(state, result)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        result = career_planning_node(state)
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("career_planning agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"career_planning": "Career planning is currently unavailable."})
 
 
 def _application_wrapper(state: CopilotState) -> dict:
@@ -183,8 +213,14 @@ def _application_wrapper(state: CopilotState) -> dict:
     This node generates the draft application package.  It does NOT submit;
     that is handled by application_send (HITL gate) which follows immediately.
     """
-    result = application_node(state)
-    return _advance_plan(state, result)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        result = application_node(state)
+        return _advance_plan(state, result)
+    except Exception as exc:
+        _log.warning("application agent failed (%s) — advancing plan", exc)
+        return _advance_plan(state, {"application_package": None})
 
 
 # ---------------------------------------------------------------------------

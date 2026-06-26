@@ -23,8 +23,8 @@ Usage from the Supervisor's graph:
 
 from typing import TypedDict
 
-from app.core.pipeline import run_standalone_analysis, run_tailored_analysis
-from app.schemas import CVAnalysisResponse
+from app.agents.cv_analysis.core.pipeline import run_standalone_analysis, run_tailored_analysis
+from app.agents.cv_analysis.schemas import CVAnalysisResponse
 
 
 class CVAnalysisInputState(TypedDict, total=False):

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import uuid
 from collections.abc import Generator
 from typing import Any
@@ -13,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/runs", tags=["runs"])
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # In-memory fallback — used when Supabase is not configured (e.g. local dev
@@ -106,11 +109,64 @@ def set_supervisor(graph: Any) -> None:
     _supervisor = graph
 
 
+def _try_init_supervisor() -> None:
+    """Initialize the supervisor graph (Postgres checkpointer or MemorySaver fallback).
+
+    This is called lazily on the first request that needs the supervisor,
+    not at app startup, to reduce cold start time on serverless platforms.
+    """
+    try:
+        from app.orchestrator.supervisor import build_supervisor  # noqa: PLC0415
+
+        # Prefer durable Postgres checkpointer when DATABASE_URL is present
+        if os.getenv("DATABASE_URL"):
+            try:
+                from app.memory.checkpointer import checkpointer_cm  # noqa: PLC0415
+
+                _cm = checkpointer_cm()
+                checkpointer = _cm.__enter__()
+                graph = build_supervisor(checkpointer=checkpointer)
+                set_supervisor(graph)
+                return
+            except Exception:  # noqa: BLE001
+                pass  # fall through to MemorySaver
+
+        # Fallback: in-memory checkpointer (no cross-restart persistence)
+        from langgraph.checkpoint.memory import MemorySaver  # noqa: PLC0415
+
+        graph = build_supervisor(checkpointer=MemorySaver())
+        set_supervisor(graph)
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to initialize supervisor graph")
+
+
+def _ensure_supervisor_initialized() -> None:
+    """Lazily initialize the supervisor graph on first request.
+
+    This defers expensive LangGraph imports and graph building until the first
+    request that needs it, dramatically reducing cold start time on serverless
+    platforms like HuggingFace Spaces.
+    """
+    global _supervisor  # noqa: PLW0603
+    if _supervisor is not None:
+        return
+
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    try:
+        _try_init_supervisor()
+    except Exception:  # noqa: BLE001
+        _log.exception("Failed to initialize supervisor graph on first request")
+        raise
+
+
 def _require_supervisor() -> Any:
+    _ensure_supervisor_initialized()
     if _supervisor is None:
         raise RuntimeError(
-            "Supervisor graph not initialised. "
-            "Call app.api.runs.set_supervisor(graph) at startup."
+            "Supervisor graph failed to initialize. "
+            "Check logs for import or dependency errors."
         )
     return _supervisor
 

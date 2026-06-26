@@ -43,7 +43,7 @@ jobs:
       - name: Vitest
         run: npm test
 
-      - name: Next.js build (Vercel mode — no standalone output)
+      - name: Next.js build (CI validation — placeholder Supabase values)
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
@@ -58,58 +58,19 @@ jobs:
     if: github.event_name == 'pull_request'
     environment:
       name: preview
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
-        working-directory: .
 
       - name: Pull Vercel environment (preview)
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Load Vercel env vars into GitHub environment
-        run: |
-          python3 -c "
-          import os
-          env_file = '.vercel/.env.preview.local'
-          if os.path.exists(env_file):
-              with open(env_file) as f:
-                  for line in f:
-                      line = line.strip()
-                      if line and not line.startswith('#') and '=' in line:
-                          key, _, val = line.partition('=')
-                          val = val.strip().strip('\"').strip(\"'\")
-                          print(f'{key.strip()}={val}')
-          else:
-              print('No preview env file found')
-          " >> \$GITHUB_ENV
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build for Vercel (direct Next.js — bypasses vercel build spawn issue)
-        run: npm run build
-        env:
-          VERCEL: "1"
-          NEXT_PUBLIC_API_BASE: ${{ vars.STAGING_API_BASE || 'https://AhmedNashat1-career-copilot-api.hf.space' }}
-          NEXT_PUBLIC_SUPABASE_URL: https://tsoseawjafhgcbysbokh.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Deploy preview
+      - name: Deploy preview to Vercel
         id: deploy
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(vercel deploy --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
@@ -132,58 +93,19 @@ jobs:
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
-        working-directory: .
 
       - name: Pull Vercel environment (production)
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Load Vercel env vars into GitHub environment
-        run: |
-          python3 -c "
-          import os
-          env_file = '.vercel/.env.production.local'
-          if os.path.exists(env_file):
-              with open(env_file) as f:
-                  for line in f:
-                      line = line.strip()
-                      if line and not line.startswith('#') and '=' in line:
-                          key, _, val = line.partition('=')
-                          val = val.strip().strip('\"').strip(\"'\")
-                          print(f'{key.strip()}={val}')
-          else:
-              print('No production env file found')
-          " >> \$GITHUB_ENV
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build for Vercel (direct Next.js — bypasses vercel build spawn issue)
-        run: npm run build
-        env:
-          VERCEL: "1"
-          NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
-          NEXT_PUBLIC_SUPABASE_URL: https://tsoseawjafhgcbysbokh.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Deploy to production
+      - name: Deploy to Vercel Production
         id: deploy
         run: |
-          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Print deployment URL

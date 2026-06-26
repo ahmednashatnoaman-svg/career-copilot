@@ -14,11 +14,20 @@ that general-purpose NER wasn't trained for) — the LLM has actual resume
 context to reason with, so all four entity fields now come from there.
 """
 
-from app.core.analysis import llm_feedback
-from app.core.analysis.ats_scoring import score_ats
-from app.core.extraction.parser import extract_text
-from app.core.extraction.structure import detect_sections, extract_emails, extract_phones
-from app.schemas import ATSCheck, CVAnalysisResponse, ExtractedEntities, LLMFeedback
+from app.agents.cv_analysis.core.analysis import llm_feedback
+from app.agents.cv_analysis.core.analysis.ats_scoring import score_ats
+from app.agents.cv_analysis.core.extraction.parser import extract_text
+from app.agents.cv_analysis.core.extraction.structure import (
+    detect_sections,
+    extract_emails,
+    extract_phones,
+)
+from app.agents.cv_analysis.schemas import (
+    ATSCheck,
+    CVAnalysisResponse,
+    ExtractedEntities,
+    LLMFeedback,
+)
 
 
 def _build_entities(

@@ -23,7 +23,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _BASE_URL     = "https://api.adzuna.com/v1/api/jobs"
-_RESULTS_PAGE = 20
+_RESULTS_PAGE = 2
 _DEFAULT_COUNTRY = "gb"   # fallback when location doesn't map to a country code
 
 # Maps common location strings to Adzuna country codes

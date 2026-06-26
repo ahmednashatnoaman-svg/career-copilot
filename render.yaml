@@ -23,19 +23,7 @@ services:
         sync: false           # set in Render dashboard
       - key: GOOGLE_API_KEY
         sync: false
-      # --- Azure OpenAI (AI Foundry) ---
-      - key: AZURE_OPENAI_ENDPOINT
-        sync: false
-      - key: AZURE_OPENAI_API_KEY
-        sync: false
-      - key: AZURE_OPENAI_DEPLOYMENT_NAME
-        value: gpt-4.1-mini
-      - key: AZURE_OPENAI_EMBEDDING_ENDPOINT
-        sync: false
-      - key: AZURE_OPENAI_EMBEDDING_API_KEY
-        sync: false
-      - key: AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
-        value: text-embedding-3-small
+
       # --- Web search ---
       - key: TAVILY_API_KEY
         sync: false

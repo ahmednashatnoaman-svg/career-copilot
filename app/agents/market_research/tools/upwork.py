@@ -50,7 +50,7 @@ def _search_via_api(query: str) -> list[dict]:
 
     params = {
         "q":       query,
-        "paging":  "0;20",
+        "paging":  "0;2",
         "sort":    "recency",
     }
 

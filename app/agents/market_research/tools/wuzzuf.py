@@ -26,7 +26,7 @@ _HEADERS = {
 }
 
 _SCRAPE_DELAY = 2.0   # seconds between scrape requests
-_MAX_SCRAPE   = 5     # max individual job pages to scrape per search
+_MAX_SCRAPE   = 2     # max individual job pages to scrape per search
 
 
 def search_jobs(role: str, location: str) -> list[dict]:

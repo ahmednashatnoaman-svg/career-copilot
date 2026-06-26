@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -19,13 +20,13 @@ from app.api.matches import router as matches_router
 from app.api.runs import router as runs_router
 from app.core.tracing import configure_tracing
 
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     configure_tracing()
-    _try_init_supervisor()
+    # Supervisor graph is initialized lazily on first request to speed up cold start
     yield
-
 
 app = FastAPI(title="AI Career Copilot", lifespan=lifespan)
 
@@ -109,42 +110,3 @@ app.include_router(matches_router)
 app.include_router(admin_router)
 
 
-# ---------------------------------------------------------------------------
-# Supervisor init helper
-# ---------------------------------------------------------------------------
-
-
-def _try_init_supervisor() -> None:
-    """Initialise the supervisor graph.
-
-    Tries Postgres checkpointer when DATABASE_URL is configured; falls back to
-    MemorySaver so the supervisor always starts (state won't survive restarts
-    in fallback mode, but agents work normally within a session).
-
-    Silently skips only if the supervisor module itself cannot be imported
-    (e.g. missing optional deps in CI unit-test environments).
-    """
-    try:
-        from app.api.runs import set_supervisor  # noqa: PLC0415
-        from app.orchestrator.supervisor import build_supervisor  # noqa: PLC0415
-
-        # Prefer durable Postgres checkpointer when DATABASE_URL is present
-        if os.getenv("DATABASE_URL"):
-            try:
-                from app.memory.checkpointer import checkpointer_cm  # noqa: PLC0415
-
-                _cm = checkpointer_cm()
-                checkpointer = _cm.__enter__()
-                graph = build_supervisor(checkpointer=checkpointer)
-                set_supervisor(graph)
-                return
-            except Exception:  # noqa: BLE001
-                pass  # fall through to MemorySaver
-
-        # Fallback: in-memory checkpointer (no cross-restart persistence)
-        from langgraph.checkpoint.memory import MemorySaver  # noqa: PLC0415
-
-        graph = build_supervisor(checkpointer=MemorySaver())
-        set_supervisor(graph)
-    except Exception:  # noqa: BLE001
-        pass

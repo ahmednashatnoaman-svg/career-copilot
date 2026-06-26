@@ -1,14 +1,13 @@
 """LLM provider factory with multi-provider fallback chains.
 
-Provider priority when all three keys are configured:
-  LLM_PROVIDER=groq  → Llama (Groq) → Gemini (Google) → Azure
-  LLM_PROVIDER=google → Gemini → Llama (Groq) → Azure
-  LLM_PROVIDER=azure  → Azure → Llama (Groq) → Gemini
+Provider priority when all keys are configured:
+  LLM_PROVIDER=groq  → Llama (Groq) → Gemini (Google)
+  LLM_PROVIDER=google → Gemini → Llama (Groq)
 
 Fast-model routing
 ------------------
-task="fast"   → llm_model_fast (Groq) / google_model_fast (Google) / azure deployment
-task="reason" → llm_model (Groq) / google_model (Google) / azure deployment
+task="fast"   → llm_model_fast (Groq) / google_model_fast (Google)
+task="reason" → llm_model (Groq) / google_model (Google)
 
 Default free-tier Gemini models
 --------------------------------
@@ -51,26 +50,6 @@ def _build_google(model: str, temperature: float, max_tokens: int | None) -> Bas
     return ChatGoogleGenerativeAI(**kwargs)
 
 
-def _build_azure(temperature: float, max_tokens: int | None) -> BaseChatModel:
-    """Build an Azure AI Foundry model using the OpenAI-compatible endpoint.
-
-    The AI Foundry endpoint already includes /openai/v1, so we use ChatOpenAI
-    with base_url directly rather than AzureChatOpenAI (which adds its own path).
-    """
-    from langchain_openai import ChatOpenAI
-
-    s = get_settings()
-    kwargs: dict = {
-        "model": s.azure_openai_deployment_name,
-        "api_key": s.azure_openai_api_key,
-        "base_url": s.azure_openai_endpoint,
-        "temperature": temperature,
-    }
-    if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
-    return ChatOpenAI(**kwargs)
-
-
 def get_llm(
     task: Task = "reason",
     temperature: float = 0.0,
@@ -78,8 +57,8 @@ def get_llm(
 ) -> BaseChatModel | Runnable:
     """Return a LangChain chat model for the given task tier.
 
-    Wraps the primary model with ``RunnableWithFallbacks`` when secondary /
-    tertiary provider keys are present — up to a 3-provider chain.
+    Wraps the primary model with ``RunnableWithFallbacks`` when secondary provider
+    keys are present.
     """
     s = get_settings()
 
@@ -100,22 +79,11 @@ def get_llm(
             
         if s.google_api_key:
             fallbacks.append(_build_google(g_model, temperature, max_tokens))
-        if s.azure_openai_api_key and s.azure_openai_endpoint:
-            fallbacks.append(_build_azure(temperature, max_tokens))
 
     elif s.llm_provider == "google":
         primary = _build_google(g_model, temperature, max_tokens)
         for key in groq_keys:
             fallbacks.append(_build_groq(groq_model, temperature, max_tokens, api_key=key))
-        if s.azure_openai_api_key and s.azure_openai_endpoint:
-            fallbacks.append(_build_azure(temperature, max_tokens))
-
-    elif s.llm_provider == "azure":
-        primary = _build_azure(temperature, max_tokens)
-        for key in groq_keys:
-            fallbacks.append(_build_groq(groq_model, temperature, max_tokens, api_key=key))
-        if s.google_api_key:
-            fallbacks.append(_build_google(g_model, temperature, max_tokens))
 
     else:
         raise ValueError(f"Unsupported LLM_PROVIDER: {s.llm_provider!r}")

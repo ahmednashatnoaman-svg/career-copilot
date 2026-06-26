@@ -7,8 +7,7 @@ standard section headers present) — not subjective quality. This keeps the
 score explainable and consistent across runs.
 """
 
-from app.schemas import ATSCheck
-from app.core.extraction.structure import SECTION_HEADERS
+from app.agents.cv_analysis.schemas import ATSCheck
 
 MAX_SCORE = 100
 

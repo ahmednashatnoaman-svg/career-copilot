@@ -12,9 +12,9 @@ the `resume_text` form field. Exactly one must be provided.
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from app.core.extraction.parser import UnsupportedFileTypeError
-from app.core.pipeline import run_standalone_analysis, run_tailored_analysis
-from app.schemas import CVAnalysisResponse
+from app.agents.cv_analysis.core.extraction.parser import UnsupportedFileTypeError
+from app.agents.cv_analysis.core.pipeline import run_standalone_analysis, run_tailored_analysis
+from app.agents.cv_analysis.schemas import CVAnalysisResponse
 
 app = FastAPI(title="CV Analysis Agent", version="1.0")
 
