@@ -37,7 +37,7 @@ class _StubGraph:
     emits at least a ``done`` event.
     """
 
-    def stream(self, state, *, config=None, stream_mode="updates"):
+    async def astream(self, state, *, config=None, stream_mode="updates"):
         yield {"aggregate": {"final_answer": "stub answer"}}
 
     def invoke(self, state, *, config=None):

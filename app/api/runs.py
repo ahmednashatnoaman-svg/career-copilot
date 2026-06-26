@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import uuid
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import APIRouter, Body, Request

@@ -168,7 +168,7 @@ export default function ApplicationsPage() {
                   All Applications
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Click "View" to see the generated cover letter for each application.
+                  Click &quot;View&quot; to see the generated cover letter for each application.
                 </p>
               </div>
 
