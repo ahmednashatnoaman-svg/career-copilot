@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from qdrant_client.models import Distance, VectorParams
 
+from app.rag.embeddings import EMBED_DIM  # single source of truth for vector size
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -15,10 +17,18 @@ def _make_mock_client(collection_exists: bool = False) -> MagicMock:
     return client
 
 
-def _make_mock_search_result(text: str, score: float, doc_id: str) -> MagicMock:
+def _make_mock_search_result(
+    text: str, score: float, doc_id: str, chunk_index: int = 0, filename: str = ""
+) -> MagicMock:
     point = MagicMock()
     point.score = score
-    point.payload = {"text": text, "doc_id": doc_id, "user_id": "u1"}
+    point.payload = {
+        "text": text,
+        "doc_id": doc_id,
+        "user_id": "u1",
+        "chunk_index": chunk_index,
+        "filename": filename,
+    }
     return point
 
 
@@ -47,7 +57,7 @@ class TestEnsureCollection:
             else call_kwargs.kwargs["vectors_config"]
         )
         assert isinstance(vectors_config, VectorParams)
-        assert vectors_config.size == 384
+        assert vectors_config.size == EMBED_DIM
         assert vectors_config.distance == Distance.COSINE
 
     def test_skips_create_when_collection_exists(self):
@@ -69,7 +79,7 @@ class TestUpsertChunks:
     def test_returns_chunk_count(self):
         mock_client = _make_mock_client(collection_exists=True)
         chunks = ["chunk one", "chunk two", "chunk three"]
-        fake_vectors = [[0.1] * 384, [0.2] * 384, [0.3] * 384]
+        fake_vectors = [[0.1] * EMBED_DIM, [0.2] * EMBED_DIM, [0.3] * EMBED_DIM]
 
         with (
             patch("app.rag.store.get_qdrant", return_value=mock_client),
@@ -85,7 +95,7 @@ class TestUpsertChunks:
     def test_upsert_payload_contains_required_fields(self):
         mock_client = _make_mock_client(collection_exists=True)
         chunks = ["hello world"]
-        fake_vectors = [[0.5] * 384]
+        fake_vectors = [[0.5] * EMBED_DIM]
 
         with (
             patch("app.rag.store.get_qdrant", return_value=mock_client),
@@ -106,6 +116,8 @@ class TestUpsertChunks:
         assert payload["user_id"] == "user42"
         assert payload["doc_id"] == "doc99"
         assert payload["text"] == "hello world"
+        assert payload["chunk_index"] == 0
+        assert "filename" in payload
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +127,7 @@ class TestUpsertChunks:
 class TestQuery:
     def test_query_applies_user_id_filter(self):
         mock_client = _make_mock_client()
-        fake_vectors = [[0.1] * 384]
+        fake_vectors = [[0.1] * EMBED_DIM]
         mock_response = MagicMock()
         mock_response.points = []
         mock_client.query_points.return_value = mock_response
@@ -145,10 +157,10 @@ class TestQuery:
 
     def test_query_returns_correct_shape(self):
         mock_client = _make_mock_client()
-        fake_vectors = [[0.1] * 384]
+        fake_vectors = [[0.1] * EMBED_DIM]
         mock_response = MagicMock()
         mock_response.points = [
-            _make_mock_search_result("chunk text", 0.95, "doc_abc"),
+            _make_mock_search_result("chunk text", 0.95, "doc_abc", chunk_index=2, filename="resume.pdf"),
         ]
         mock_client.query_points.return_value = mock_response
 
@@ -164,10 +176,12 @@ class TestQuery:
         assert results[0]["text"] == "chunk text"
         assert results[0]["score"] == 0.95
         assert results[0]["doc_id"] == "doc_abc"
+        assert results[0]["chunk_index"] == 2
+        assert results[0]["filename"] == "resume.pdf"
 
     def test_query_uses_top_k(self):
         mock_client = _make_mock_client()
-        fake_vectors = [[0.1] * 384]
+        fake_vectors = [[0.1] * EMBED_DIM]
         mock_response = MagicMock()
         mock_response.points = []
         mock_client.query_points.return_value = mock_response
