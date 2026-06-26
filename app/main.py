@@ -77,6 +77,7 @@ async def jwt_auth_middleware(request: Request, call_next):
         if not user_resp or not user_resp.user:
             return JSONResponse(status_code=401, content={"detail": "Invalid token"})
         request.state.user_id = user_resp.user.id
+        request.state.user_email = user_resp.user.email or ""
     except Exception:  # noqa: BLE001
         return JSONResponse(status_code=401, content={"detail": "Token verification failed"})
 
