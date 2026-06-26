@@ -30,7 +30,7 @@ def search_jobs(
     role: str,
     location: str = "Remote",
     mode: str = "international",
-    limit: int = 20,
+    limit: int = 2,
 ) -> list[dict[str, Any]]:
     """Search multiple job boards via JobSpy.
 

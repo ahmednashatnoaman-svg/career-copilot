@@ -171,6 +171,8 @@ def validator_node(state: MarketAgentState) -> dict:
     # Safe because model_dump(mode="json") already converted HttpUrl to str
     try:
         final_postings = [JobPosting(**p)     for p in postings_dicts]
+        final_postings.sort(key=lambda x: x.confidence, reverse=True)
+        final_postings = final_postings[:4]
         final_salaries = [SalaryInsight(**s)  for s in salaries_dicts]
         final_trends   = [MarketTrend(**t)    for t in trends_dicts]
         final_gaps     = [SkillGap(**g)       for g in gaps_dicts]
