@@ -1,6 +1,7 @@
 name: Deploy Backend → Hugging Face Spaces
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
@@ -94,6 +95,9 @@ jobs:
 
           to_upload = [f for f in changed if is_backend(f) and Path(f).is_file()]
 
+          # Always ensure Dockerfile is synced (HF Space entrypoint)
+          always_sync = [f for f in ("Dockerfile", "pyproject.toml", "uv.lock") if Path(f).is_file()]
+
           if to_upload:
               print(f"Uploading {len(to_upload)} changed file(s)…")
               for fpath in sorted(to_upload):
@@ -115,16 +119,15 @@ jobs:
                   repo_type="space",
                   commit_message=f"ci: full sync @ {SHA}",
               )
-              for f in ("pyproject.toml", "uv.lock"):
-                  if Path(f).is_file():
-                      api.upload_file(
-                          path_or_fileobj=f,
-                          path_in_repo=f,
-                          repo_id=REPO_ID,
-                          repo_type="space",
-                          commit_message=f"ci: sync {f} @ {SHA}",
-                      )
-                      print(f"  ✓ {f}")
+              for f in always_sync:
+                  api.upload_file(
+                      path_or_fileobj=f,
+                      path_in_repo=f,
+                      repo_id=REPO_ID,
+                      repo_type="space",
+                      commit_message=f"ci: sync {f} @ {SHA}",
+                  )
+                  print(f"  ✓ {f}")
 
           print("\nHF Space rebuild triggered. Build typically takes 2–5 min.")
           PYEOF
