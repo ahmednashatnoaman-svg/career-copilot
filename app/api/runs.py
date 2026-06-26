@@ -194,10 +194,32 @@ async def _stream_graph(
                 if node_name == "__interrupt__":
                     raw = state_delta if hasattr(state_delta, "__iter__") else [state_delta]
                     interrupt_data = [getattr(i, "value", str(i)) for i in raw]
-                    yield _sse_frame("interrupt", {"hitl_request": interrupt_data})
+                    
+                    hitl_req = None
+                    for d in interrupt_data:
+                        if isinstance(d, dict) and "hitl_request" in d:
+                            hitl_req = d["hitl_request"]
+                            break
+                    
+                    if hitl_req:
+                        yield _sse_frame("interrupt", {"hitl_request": hitl_req})
+                    else:
+                        # Fallback if it's not structured with hitl_request key
+                        # Just take the first element if it exists to avoid sending an array
+                        payload = interrupt_data[0] if interrupt_data else {}
+                        yield _sse_frame("interrupt", {"hitl_request": payload})
                     return
                 elif isinstance(state_delta, dict) and "__interrupt__" in state_delta:
-                    yield _sse_frame("interrupt", {"hitl_request": state_delta["__interrupt__"]})
+                    # In some stream modes or configurations, it might be nested
+                    hitl_val = state_delta["__interrupt__"]
+                    if isinstance(hitl_val, tuple) and len(hitl_val) > 0:
+                        val = getattr(hitl_val[0], "value", hitl_val[0])
+                        if isinstance(val, dict) and "hitl_request" in val:
+                            hitl_val = val["hitl_request"]
+                    elif isinstance(hitl_val, dict) and "hitl_request" in hitl_val:
+                        hitl_val = hitl_val["hitl_request"]
+                        
+                    yield _sse_frame("interrupt", {"hitl_request": hitl_val})
                     return
                 else:
                     yield _sse_frame("node", {"node": node_name, "data": state_delta})
