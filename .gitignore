@@ -5,3 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 data/
+.DS_Store
+app/agents/cache.json
+production-plan.md
+.vercel
