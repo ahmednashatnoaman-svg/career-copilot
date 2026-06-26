@@ -48,6 +48,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
+          NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
 
   # ── Preview deployment (on PRs) ───────────────────────────────
   preview:
