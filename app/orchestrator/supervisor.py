@@ -71,15 +71,30 @@ def _rag_wrapper(state: CopilotState) -> dict:
 
 
 def _market_wrapper(state: CopilotState) -> dict:
-    """Build a minimal MarketAgentInput from CopilotState and invoke market_node."""
+    """Build MarketAgentInput from CopilotState, enriched with CV analysis output."""
     user_message: str = state.get("user_message") or ""
     user_id: str = state.get("user_id") or "unknown"
+
+    # Pull target_roles and skills from cv_analysis when it ran before market.
+    # LangGraph may keep the value as a Pydantic model or serialise it to dict.
+    target_roles: list[str] = []
+    skills: list[str] = []
+    cv = state.get("cv_analysis")
+    if cv is not None:
+        if hasattr(cv, "entities"):                               # Pydantic model
+            target_roles = list(cv.entities.job_titles or [])
+            skills = list(cv.entities.skills or [])
+        elif isinstance(cv, dict):                                # serialised dict
+            entities = cv.get("entities") or {}
+            if isinstance(entities, dict):
+                target_roles = list(entities.get("job_titles") or [])
+                skills = list(entities.get("skills") or [])
 
     market_input = MarketAgentInput(
         user_id=user_id,
         query=user_message,
-        target_roles=[],
-        skills=[],
+        target_roles=target_roles,
+        skills=skills,
         experience_years=0,
         preferred_locations=[],
         work_preferences=WorkPreferences(),
@@ -144,7 +159,14 @@ def _matching_wrapper(state: CopilotState) -> dict:
 
 
 def _portfolio_wrapper(state: CopilotState) -> dict:
-    """Invoke portfolio_node (async) synchronously and advance the plan."""
+    """Invoke portfolio_node (async) synchronously and advance the plan.
+
+    asyncio.run() is safe here: the supervisor graph always executes inside
+    run_in_threadpool() (see app/api/runs.py), which dispatches to a thread
+    that has no running event loop, so asyncio.run() creates a fresh one.
+    It would raise RuntimeError only when called from within an already-running
+    event loop — that is not the case in this execution path.
+    """
     result = asyncio.run(portfolio_node(state))
     return _advance_plan(state, result)
 
