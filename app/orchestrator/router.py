@@ -81,7 +81,8 @@ def route(state: CopilotState) -> dict:
 
     # --- Recall long-term user facts (graceful: returns {} on any error) ---
     long_term_memory: dict = {}
-    if user_id:
+    import os
+    if user_id and os.getenv("DATABASE_URL"):
         try:
             long_term_memory = recall(user_id)
         except Exception:
