@@ -6,7 +6,7 @@ import logging
 import uuid
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from app.rag.ingest import ingest_document as _default_ingest
@@ -45,7 +45,7 @@ def reset_ingest_fn() -> None:
 
 @router.post("")
 async def upload_document(
-    user_id: str = Form(...),
+    request: Request,
     file: UploadFile = File(...),  # noqa: B008
     ingest_fn: Callable = Depends(get_ingest_fn),  # noqa: B008
 ):
@@ -54,6 +54,7 @@ async def upload_document(
     Returns:
         JSON with ``doc_id`` (str) and ``chunks`` (int).
     """
+    user_id: str = getattr(request.state, "user_id", "")
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file uploaded.")
