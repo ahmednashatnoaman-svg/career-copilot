@@ -5,8 +5,12 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
+import logging
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+
+logger = logging.getLogger(__name__)
 
 from app.rag.ingest import ingest_document as _default_ingest
 
@@ -82,9 +86,10 @@ async def upload_document(
                     "id": doc_id,
                     "user_id": user_id,
                     "filename": filename,
+                    "chunks": chunks,
                 }
             ).execute()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Supabase document insert failed: %s", exc)
 
     return {"doc_id": doc_id, "chunks": chunks}
