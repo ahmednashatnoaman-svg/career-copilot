@@ -78,6 +78,9 @@ jobs:
       - name: Pull Vercel environment (preview)
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Build for Vercel
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -128,6 +131,9 @@ jobs:
 
       - name: Pull Vercel environment (production)
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build for Vercel
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
