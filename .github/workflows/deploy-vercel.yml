@@ -98,8 +98,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for Vercel (direct Next.js — bypasses vercel build spawn issue)
-        run: npm run build
+      - name: Build for Vercel
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL: "1"
           NEXT_PUBLIC_API_BASE: ${{ vars.STAGING_API_BASE || 'https://AhmedNashat1-career-copilot-api.hf.space' }}
@@ -172,8 +172,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for Vercel (direct Next.js — bypasses vercel build spawn issue)
-        run: npm run build
+      - name: Build for Vercel
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL: "1"
           NEXT_PUBLIC_API_BASE: https://AhmedNashat1-career-copilot-api.hf.space
