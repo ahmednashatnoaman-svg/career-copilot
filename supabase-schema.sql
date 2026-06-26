@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email       TEXT,
   full_name   TEXT,
   github_username TEXT,
+  is_admin    BOOLEAN DEFAULT false,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
@@ -96,14 +97,18 @@ CREATE TRIGGER applications_updated_at
 
 -- ── 6. Runs ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.runs (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id     UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  thread_id   TEXT UNIQUE NOT NULL,
-  status      TEXT DEFAULT 'running',  -- running | completed | error | interrupted
-  message     TEXT,
-  doc_ids     TEXT[],
-  created_at  TIMESTAMPTZ DEFAULT now(),
-  completed_at TIMESTAMPTZ
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id          UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  thread_id        TEXT UNIQUE NOT NULL,
+  status           TEXT DEFAULT 'running',  -- running | completed | error | interrupted
+  message          TEXT,
+  doc_ids          TEXT[],
+  resume_text      TEXT,
+  github_username  TEXT,
+  github_token     TEXT,
+  job_description  TEXT,
+  created_at       TIMESTAMPTZ DEFAULT now(),
+  completed_at     TIMESTAMPTZ
 );
 
 -- ── 7. Interview Sessions ──────────────────────────────────
