@@ -33,13 +33,18 @@ app = FastAPI(title="AI Career Copilot", lifespan=lifespan)
 # CORS
 # ---------------------------------------------------------------------------
 
+# Explicit origin allowlist — no regex, because allow_origin_regex + allow_credentials=True
+# would let any Vercel app make credentialed requests to this backend (CSRF risk).
+# Set FRONTEND_URL (production) and FRONTEND_URL_PREVIEW (PR preview) in the backend env.
+_allowed_origins: list[str] = list(filter(None, [
+    "http://localhost:3000",
+    os.getenv("FRONTEND_URL", ""),
+    os.getenv("FRONTEND_URL_PREVIEW", ""),
+]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        os.getenv("FRONTEND_URL", ""),
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
