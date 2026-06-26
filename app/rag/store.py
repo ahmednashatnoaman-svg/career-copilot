@@ -19,13 +19,16 @@ COLLECTION = "career_docs"
 
 
 def ensure_collection() -> None:
-    """Create the Qdrant collection if it does not yet exist."""
+    """Create the Qdrant collection if it does not yet exist (idempotent)."""
     client = get_qdrant()
     if not client.collection_exists(COLLECTION):
-        client.create_collection(
-            collection_name=COLLECTION,
-            vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
-        )
+        try:
+            client.create_collection(
+                collection_name=COLLECTION,
+                vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
+            )
+        except Exception:  # noqa: BLE001
+            pass  # concurrent caller already created it
 
 
 def upsert_chunks(user_id: str, doc_id: str, chunks: list[str]) -> int:
@@ -39,6 +42,7 @@ def upsert_chunks(user_id: str, doc_id: str, chunks: list[str]) -> int:
     if not chunks:
         return 0
 
+    ensure_collection()
     vectors = embed_texts(chunks)
     points = [
         PointStruct(
@@ -61,6 +65,7 @@ def query(user_id: str, text: str, top_k: int = 6) -> list[dict]:
         List of ``{"text": str, "score": float, "doc_id": str}`` dicts,
         ordered by descending relevance score.
     """
+    ensure_collection()
     (query_vector,) = embed_texts([text])
 
     user_filter = Filter(
