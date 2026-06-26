@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Body, Request
 
 router = APIRouter(prefix="/coaching", tags=["coaching"])
+
+_coaching_graph: Any = None
+
+
+def _get_coaching_graph() -> Any:
+    global _coaching_graph  # noqa: PLW0603
+    if _coaching_graph is None:
+        from app.agents.coaching.graph import build_coaching_graph  # noqa: PLC0415
+
+        _coaching_graph = build_coaching_graph(checkpointer=None)
+    return _coaching_graph
 
 
 @router.post("/chat")
@@ -34,9 +46,7 @@ async def coaching_chat(
         thread_id = str(uuid.uuid4())
 
     try:
-        from app.agents.coaching.graph import build_coaching_graph  # noqa: PLC0415
-
-        graph = build_coaching_graph(checkpointer=None)
+        graph = _get_coaching_graph()
         config = {"configurable": {"thread_id": f"{user_id}:{thread_id}"}}
         result = graph.invoke(
             {
@@ -48,13 +58,11 @@ async def coaching_chat(
             },
             config=config,
         )
-        response = result.get("coaching", {}).get(
-            "response", "I'm here to help with your career!"
-        )
+        response = result.get("response", "I'm here to help with your career!")
         return {
             "thread_id": thread_id,
             "response": response,
-            "mode": result.get("coaching", {}).get("sub_intent", mode),
+            "mode": result.get("sub_intent", mode),
         }
     except Exception as exc:  # noqa: BLE001
         return {
