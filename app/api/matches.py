@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Request
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -91,11 +91,13 @@ def get_matches(user_id: str) -> list[dict]:
 
 
 @router.get("/")
-async def list_matches(user_id: str = Query(...)):
+async def list_matches(request: Request):
+    user_id: str = getattr(request.state, "user_id", "")
     return get_matches(user_id)
 
 
 @router.post("/")
-async def save_user_matches(user_id: str, matches: list[dict]):
+async def save_user_matches(request: Request, matches: list[dict] = Body(...)):
+    user_id: str = getattr(request.state, "user_id", "")
     save_matches(user_id, matches)
     return {"saved": len(matches)}
