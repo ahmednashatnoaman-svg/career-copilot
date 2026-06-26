@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { uploadDocument } from "@/lib/api";
 
 interface UploadedFile {
+  id: string;
   name: string;
   status: "uploading" | "done" | "error";
   chunks?: number;
@@ -34,24 +35,43 @@ export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropz
 
   const processFiles = useCallback(
     async (incoming: FileList | File[]) => {
-      const list = Array.from(incoming);
-      if (list.length === 0) return;
+      // Validate MIME types — reject anything not in the accepted list
+      const valid: File[] = [];
+      for (const file of Array.from(incoming)) {
+        if (ACCEPTED_TYPES.includes(file.type)) {
+          valid.push(file);
+        } else {
+          const id = crypto.randomUUID();
+          setFiles((prev) => [
+            ...prev,
+            { id, name: file.name, status: "error", error: "Unsupported file type" },
+          ]);
+        }
+      }
+      if (valid.length === 0) return;
 
-      // Add all as "uploading"
+      // Assign a stable unique id per file so removeFile is safe when names collide
+      const entries = valid.map((file) => ({
+        file,
+        id: crypto.randomUUID(),
+      }));
+
       setFiles((prev) => [
         ...prev,
-        ...list.map((f) => ({ name: f.name, status: "uploading" as const })),
+        ...entries.map(({ id, file }) => ({
+          id,
+          name: file.name,
+          status: "uploading" as const,
+        })),
       ]);
 
       await Promise.all(
-        list.map(async (file) => {
+        entries.map(async ({ id, file }) => {
           try {
             const res = await uploadDocument(userId, file);
             setFiles((prev) =>
               prev.map((f) =>
-                f.name === file.name && f.status === "uploading"
-                  ? { ...f, status: "done", chunks: res.chunks }
-                  : f
+                f.id === id ? { ...f, status: "done", chunks: res.chunks } : f
               )
             );
             onDocUploaded?.(res.doc_id);
@@ -59,16 +79,14 @@ export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropz
             const msg = err instanceof Error ? err.message : "Upload failed";
             setFiles((prev) =>
               prev.map((f) =>
-                f.name === file.name && f.status === "uploading"
-                  ? { ...f, status: "error", error: msg }
-                  : f
+                f.id === id ? { ...f, status: "error", error: msg } : f
               )
             );
           }
         })
       );
     },
-    [userId]
+    [userId, onDocUploaded]
   );
 
   const handleDrop = useCallback(
@@ -95,8 +113,8 @@ export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropz
     }
   };
 
-  const removeFile = (name: string) => {
-    setFiles((prev) => prev.filter((f) => f.name !== name));
+  const removeFile = (id: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   return (
@@ -161,9 +179,9 @@ export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropz
       {/* File list */}
       {files.length > 0 && (
         <ul className="space-y-2" aria-label="Uploaded files">
-          {files.map((f, i) => (
+          {files.map((f) => (
             <li
-              key={`${f.name}-${i}`}
+              key={f.id}
               className="card-warm flex items-center gap-3 px-4 py-3"
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -200,7 +218,7 @@ export function UploadDropzone({ userId, className, onDocUploaded }: UploadDropz
               </div>
 
               <button
-                onClick={() => removeFile(f.name)}
+                onClick={() => removeFile(f.id)}
                 aria-label={`Remove ${f.name}`}
                 className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
