@@ -29,13 +29,17 @@ def _save_run_config(thread_id: str, config: dict) -> None:
     db = get_client()
     if db is not None:
         try:
-            db.table("runs").upsert(
+            db.table("runs").insert(
                 {
                     "thread_id": thread_id,
                     "user_id": config.get("user_id", "anonymous"),
                     "status": "running",
                     "message": config.get("message", ""),
                     "doc_ids": config.get("doc_ids", []),
+                    "resume_text": config.get("resume_text", ""),
+                    "github_username": config.get("github_username", ""),
+                    "github_token": config.get("github_token", ""),
+                    "job_description": config.get("job_description", ""),
                 }
             ).execute()
             # Store full config payload in memory for the same request lifetime
