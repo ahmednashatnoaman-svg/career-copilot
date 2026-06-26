@@ -59,5 +59,5 @@ def ingest_document(
     # Ensure the Qdrant collection exists before writing (idempotent)
     ensure_collection()
 
-    # Upsert into store and return chunk count
-    return upsert_chunks(user_id=user_id, doc_id=doc_id, chunks=chunks)
+    # Upsert into store and return chunk count (filename for retrieval citations)
+    return upsert_chunks(user_id=user_id, doc_id=doc_id, chunks=chunks, filename=filename)
