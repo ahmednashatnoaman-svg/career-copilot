@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -13,28 +12,43 @@ from app.memory.longterm import recall
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Admin gate — only emails listed here may access /admin/* endpoints
-# ---------------------------------------------------------------------------
 
-_ADMIN_EMAILS: frozenset[str] = frozenset(
-    e.strip()
-    for e in os.getenv("ADMIN_EMAILS", "ahmed.nashat.noaman@gmail.com").split(",")
-    if e.strip()
-)
+# ---------------------------------------------------------------------------
+# Admin gate — checks profiles.is_admin in Supabase for the authenticated user
+# ---------------------------------------------------------------------------
 
 
 def require_admin(request: Request) -> None:
-    """Raise 403 if the authenticated user is not an admin.
+    """Raise 403 if the current user does not have is_admin = true in profiles.
 
-    Relies on jwt_auth_middleware already having verified the token and
-    stored the email in request.state.user_email.  When Supabase is not
-    configured (local dev / CI) the middleware skips auth entirely and
-    user_email will be absent — in that case we also skip the admin gate.
+    When Supabase is not configured (local dev / CI) the check is skipped so
+    tests without credentials still pass.
     """
-    email: str = getattr(request.state, "user_email", "")
-    if email and email not in _ADMIN_EMAILS:
+    from app.services.supabase_db import get_client  # noqa: PLC0415
+
+    db = get_client()
+    if db is None:
+        return  # no Supabase configured — skip in local dev / CI
+
+    user_id: str = getattr(request.state, "user_id", "")
+    if not user_id:
         raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        result = (
+            db.table("profiles")
+            .select("is_admin")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if not result.data or not result.data.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin access required")
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("require_admin profile lookup failed: %s", exc)
+        raise HTTPException(status_code=403, detail="Admin access required") from exc
 
 
 # ---------------------------------------------------------------------------
