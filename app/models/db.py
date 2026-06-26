@@ -8,6 +8,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+_UUID = String(36)
+
 
 class Base(DeclarativeBase):
     """Shared declarative base — all models inherit from here."""
@@ -34,7 +36,7 @@ class ApplicationStatus(enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -48,8 +50,8 @@ class User(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     content: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
@@ -62,7 +64,7 @@ class Document(Base):
 class Job(Base):
     __tablename__ = "jobs"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     company: Mapped[str | None] = mapped_column(String(512))
     url: Mapped[str | None] = mapped_column(Text)
@@ -78,9 +80,9 @@ class Job(Base):
 class Match(Base):
     __tablename__ = "matches"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), nullable=False)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
+    job_id: Mapped[str] = mapped_column(_UUID, ForeignKey("jobs.id"), nullable=False)
     score: Mapped[float | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -92,9 +94,9 @@ class Match(Base):
 class Application(Base):
     __tablename__ = "applications"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), nullable=False)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
+    job_id: Mapped[str] = mapped_column(_UUID, ForeignKey("jobs.id"), nullable=False)
     status: Mapped[ApplicationStatus] = mapped_column(
         Enum(ApplicationStatus, name="applicationstatus"), nullable=False
     )
@@ -112,8 +114,8 @@ class Application(Base):
 class Run(Base):
     __tablename__ = "runs"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True)
+    user_id: Mapped[str] = mapped_column(_UUID, ForeignKey("users.id"), nullable=False)
     thread_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
