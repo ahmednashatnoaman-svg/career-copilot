@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Generator
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -78,7 +78,6 @@ def _load_run_config(thread_id: str) -> dict:
 
 
 class RunRequest(BaseModel):
-    user_id: str
     message: str
     doc_ids: list[str] = []
     resume_text: str = ""
@@ -179,14 +178,15 @@ def _stream_graph_with_interrupt(
 
 
 @router.post("")
-async def create_run(body: RunRequest):
+async def create_run(request: Request, body: RunRequest):
     """Start a new supervisor run. Persists config to Supabase so any worker
     can hydrate the SSE stream from the same source of truth."""
     thread_id = str(uuid.uuid4())
     run_id = str(uuid.uuid4())
+    user_id: str = getattr(request.state, "user_id", "anonymous")
 
     config = {
-        "user_id": body.user_id,
+        "user_id": user_id,
         "message": body.message,
         "doc_ids": body.doc_ids,
         "resume_text": body.resume_text,
@@ -206,8 +206,8 @@ async def create_run(body: RunRequest):
 
 @router.get("/{thread_id}/stream")
 async def stream_run(
+    request: Request,
     thread_id: str,
-    user_id: str,
     message: str = "",
 ):
     """Stream supervisor execution as SSE.
@@ -218,6 +218,8 @@ async def stream_run(
     graph = _require_supervisor()
 
     config_data = _load_run_config(thread_id)
+    # Prefer the user_id from the stored run config; fall back to JWT identity.
+    user_id: str = config_data.get("user_id") or getattr(request.state, "user_id", "anonymous")
 
     initial_state: dict = {
         "user_id": user_id,
