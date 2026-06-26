@@ -1,18 +1,16 @@
 """
-Structural extraction from cleaned resume text: entities (names, orgs, dates)
-via spaCy NER, plus regex-based extraction for things spaCy doesn't reliably
-catch (emails, phone numbers) and simple section header detection.
+Extracts deterministic structural info from resume text: contact info via
+regex and section headers via string matching.
 
-This module is deliberately deterministic — no LLM calls here. Anything
-requiring judgment belongs in core/analysis/llm_feedback.py.
+Note: full_name, organizations, skills, and job_titles are NOT extracted
+here. General-purpose NER (spaCy) performed poorly on resume text in
+practice — out-of-distribution formatting (fragments, headers, no sentence
+context) that statistical NER wasn't trained for. All four now come from
+the LLM step in analysis/llm_feedback.py, which has actual resume context
+to reason with. See pipeline.py for how they're merged in.
 """
 
 import re
-
-import spacy
-from spacy.language import Language
-
-from app.agents.cv_analysis.schemas import ExtractedEntities
 
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
@@ -37,40 +35,10 @@ SECTION_HEADERS = [
     "languages",
     "awards",
     "references",
+    "internships",
+    "trainings",
+    "internships & trainings"
 ]
-
-_nlp: Language | None = None
-_nlp_available: bool | None = None  # None = not yet tried
-
-
-def get_nlp() -> Language | None:
-    """
-    Lazily load the spaCy model once and reuse it.
-
-    Falls back to None (rule-based-only extraction) if no model is available.
-    Download with: uv run python -m spacy download en_core_web_md
-    """
-    global _nlp, _nlp_available
-    if _nlp_available is None:
-        for model_name in ("en_core_web_md", "en_core_web_sm"):
-            try:
-                _nlp = spacy.load(model_name)
-                _nlp_available = True
-                break
-            except OSError:
-                continue
-        else:
-            import warnings
-            warnings.warn(
-                "No spaCy model found (tried en_core_web_md, en_core_web_sm). "
-                "NER-based extraction disabled; falling back to regex-only. "
-                "Install with: uv run python -m spacy download en_core_web_sm",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            _nlp_available = False
-    return _nlp
-
 
 def extract_emails(text: str) -> list[str]:
     return sorted(set(EMAIL_PATTERN.findall(text)))
@@ -116,41 +84,3 @@ def detect_sections(text: str) -> dict[str, str]:
             sections[current_section].append(line)
 
     return {name: "\n".join(content).strip() for name, content in sections.items()}
-
-
-def extract_entities(text: str) -> ExtractedEntities:
-    """
-    Extract structural entities from resume text using spaCy NER and regex.
-
-    If no spaCy model is available, falls back gracefully to regex-only
-    extraction (name and organizations will be empty; emails and phones
-    are always extracted via regex regardless).
-
-    Note: `skills` and `job_titles` are intentionally NOT populated here.
-    Both require judgment (synonym handling, inferring skills from described
-    work, distinguishing a skill from a similarly-named project) that a
-    hardcoded vocabulary or NER label can't reliably provide. Those fields
-    are filled in by the LLM step in core/analysis/llm_feedback.py and merged
-    into this object afterward — see core/pipeline.py.
-    """
-    nlp = get_nlp()
-
-    organizations: list[str] = []
-    full_name: str | None = None
-
-    if nlp is not None:
-        doc = nlp(text)
-        organizations = sorted({ent.text.strip() for ent in doc.ents if ent.label_ == "ORG"})
-        # PERSON entities: take the most frequently mentioned one as a best guess
-        # for the candidate's name (resumes often repeat the name in headers/footers).
-        person_mentions = [ent.text.strip() for ent in doc.ents if ent.label_ == "PERSON"]
-        full_name = max(set(person_mentions), key=person_mentions.count) if person_mentions else None
-
-    return ExtractedEntities(
-        full_name=full_name,
-        emails=extract_emails(text),
-        phones=extract_phones(text),
-        skills=[],       # filled in later from the LLM pass
-        organizations=organizations,
-        job_titles=[],   # filled in later from the LLM pass
-    )

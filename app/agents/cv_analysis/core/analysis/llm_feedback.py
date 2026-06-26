@@ -1,6 +1,6 @@
 """
-LLM-driven analysis via shared LLM router: skills/job-title extraction,
-strengths/weaknesses, suggestions, and (in tailored mode) JD-alignment notes.
+LLM-driven analysis via Groq: skills/job-title extraction, strengths/
+weaknesses, suggestions, and (in tailored mode) JD-alignment notes.
 
 This is the one place in the agent that calls out to an LLM. Everything
 upstream (extraction, structure, ATS scoring) is deterministic.
@@ -8,15 +8,27 @@ upstream (extraction, structure, ATS scoring) is deterministic.
 
 import json
 
+from groq import Groq
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.llm.provider import get_llm
+from app.core.config import settings
+
+_client: Groq | None = None
+
+
+def get_client() -> Groq:
+    global _client
+    if _client is None:
+        _client = Groq(api_key=settings.groq_api_key)
+    return _client
 
 
 class _LLMOutput(BaseModel):
     """Schema we ask the LLM to fill in. Internal to this module."""
 
+    full_name: str | None = None
+    organizations: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     job_titles: list[str] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
@@ -30,6 +42,8 @@ Given a candidate's resume text, analyze it and respond with ONLY a JSON object
 (no markdown fences, no preamble) matching exactly this shape:
 
 {
+  "full_name": "...",
+  "organizations": ["..."],
   "skills": ["..."],
   "job_titles": ["..."],
   "strengths": ["..."],
@@ -38,6 +52,8 @@ Given a candidate's resume text, analyze it and respond with ONLY a JSON object
 }
 
 Guidelines:
+- "full_name": the candidate's full name as it appears on the resume.
+- "organizations": companies, schools, and institutions the candidate is or was affiliated with.
 - "skills": concrete technical and professional skills evidenced in the resume
   (tools, languages, frameworks, methodologies). Normalize obvious synonyms
   (e.g. "ML" and "Machine Learning" -> "Machine Learning"). Infer skills clearly
@@ -47,8 +63,6 @@ Guidelines:
 - "weaknesses": specific, constructive gaps or weaknesses in how the resume is written
   or what it's missing (not a judgment of the person).
 - "suggestions": concrete, actionable edits the candidate could make.
-- Leave "jd_alignment_notes" as an empty list — it is not used in standalone mode.
-- Do not invent information not supported by the resume text.
 """
 
 TAILORED_SYSTEM_PROMPT = """You are an expert technical resume reviewer helping a
@@ -57,6 +71,8 @@ Given a candidate's resume text AND a target job description, respond with ONLY
 a JSON object (no markdown fences, no preamble) matching exactly this shape:
 
 {
+  "full_name": "...",
+  "organizations": ["..."],
   "skills": ["..."],
   "job_titles": ["..."],
   "strengths": ["..."],
@@ -66,6 +82,8 @@ a JSON object (no markdown fences, no preamble) matching exactly this shape:
 }
 
 Guidelines:
+- "full_name": the candidate's full name as it appears on the resume.
+- "organizations": companies, schools, and institutions the candidate is or was affiliated with.
 - "skills" and "job_titles": extracted from the RESUME only, same rules as standalone review.
 - "strengths" / "weaknesses": evaluate the resume on its own merits as a document.
 - "suggestions": concrete, actionable edits to the resume.
@@ -78,23 +96,31 @@ Guidelines:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _call_llm(*, system_prompt: str, user_content: str) -> _LLMOutput:
-    llm = get_llm("reason", temperature=0.2)
-    prompt = f"{system_prompt}\n\n{user_content}"
-    response_text = llm.invoke(prompt).content
-    data = json.loads(response_text)
+def _call_groq(*, system_prompt: str, user_content: str) -> _LLMOutput:
+    client = get_client()
+    completion = client.chat.completions.create(
+        model=settings.groq_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
+    raw = completion.choices[0].message.content
+    data = json.loads(raw)
     return _LLMOutput.model_validate(data)
 
 
 def analyze_standalone(resume_text: str) -> _LLMOutput:
-    return _call_llm(
+    return _call_groq(
         system_prompt=STANDALONE_SYSTEM_PROMPT,
         user_content=f"RESUME:\n{resume_text}",
     )
 
 
 def analyze_tailored(resume_text: str, job_description: str) -> _LLMOutput:
-    return _call_llm(
+    return _call_groq(
         system_prompt=TAILORED_SYSTEM_PROMPT,
         user_content=f"RESUME:\n{resume_text}\n\nJOB DESCRIPTION:\n{job_description}",
     )

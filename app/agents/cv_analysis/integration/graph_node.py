@@ -11,27 +11,27 @@ Why this exists separately from pipeline.py:
   branching — see project discussion). The Supervisor, however, IS a
   LangGraph agent and needs each sub-agent to behave like a graph node:
   accept the shared graph state, return a partial state update. This
-  module is that thin shim — it does not change how the CV agent works
+  module is that thin shim — it does not change how the CV workflow works
   internally, only how it's called.
 
 Usage from the Supervisor's graph:
 
-    from app.agents.cv_analysis.integration.graph_node import cv_analysis_node, CVAnalysisInputState
+    from app.integration.graph_node import cv_analysis_node, CVAnalysisInputState
 
     graph.add_node("cv_analysis", cv_analysis_node)
 """
 
 from typing import TypedDict
 
-from app.agents.cv_analysis.core.pipeline import run_standalone_analysis, run_tailored_analysis
-from app.agents.cv_analysis.schemas import CVAnalysisResponse
+from app.core.pipeline import run_standalone_analysis, run_tailored_analysis
+from app.schemas import CVAnalysisResponse
 
 
 class CVAnalysisInputState(TypedDict, total=False):
     """
     The subset of shared graph state this node reads.
 
-    Exactly one of `resume_file_bytes` (+ `resume_filename`) or `resume_text`
+    Exactly one of (`resume_file_bytes` + `resume_filename`) or `resume_text`
     must be present — same input contract as the FastAPI endpoints, just
     delivered via state instead of an HTTP request.
 
@@ -61,9 +61,9 @@ def cv_analysis_node(state: CVAnalysisInputState) -> CVAnalysisOutputState:
     node callable to do. Add this directly to the Supervisor's StateGraph.
 
     Raises the same exceptions as the underlying pipeline (e.g.
-    UnsupportedFileTypeError, ValueError for missing input) — the Supervisor
-    is responsible for catching/handling those the same way it would for
-    any other node failure.
+    UnsupportedFileTypeError, OcrUnavailableError, ValueError for missing
+    input) — the Supervisor is responsible for catching/handling those the
+    same way it would for any other node failure.
     """
     job_description = state.get("job_description")
 
