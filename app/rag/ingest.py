@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from app.agents.cv_analysis.core.extraction.parser import extract_text
 from app.rag.chunking import chunk_text
-from app.rag.store import upsert_chunks
+from app.rag.store import ensure_collection, upsert_chunks
 
 
 def ingest_document(
@@ -55,6 +55,9 @@ def ingest_document(
 
     # Chunk the text
     chunks = chunk_text(extracted_text)
+
+    # Ensure the Qdrant collection exists before writing (idempotent)
+    ensure_collection()
 
     # Upsert into store and return chunk count
     return upsert_chunks(user_id=user_id, doc_id=doc_id, chunks=chunks)
