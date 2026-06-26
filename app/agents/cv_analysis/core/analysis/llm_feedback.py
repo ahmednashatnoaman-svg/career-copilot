@@ -6,22 +6,10 @@ This is the one place in the agent that calls out to an LLM. Everything
 upstream (extraction, structure, ATS scoring) is deterministic.
 """
 
-import json
-
-from groq import Groq
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.core.config import get_settings
-
-_client: Groq | None = None
-
-
-def get_client() -> Groq:
-    global _client
-    if _client is None:
-        _client = Groq(api_key=get_settings().groq_api_key)
-    return _client
+from app.llm.provider import get_llm
 
 
 class _LLMOutput(BaseModel):
@@ -97,19 +85,12 @@ Guidelines:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def _call_groq(*, system_prompt: str, user_content: str) -> _LLMOutput:
-    client = get_client()
-    completion = client.chat.completions.create(
-        model=get_settings().llm_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0.2,
-        response_format={"type": "json_object"},
-    )
-    raw = completion.choices[0].message.content
-    data = json.loads(raw)
-    return _LLMOutput.model_validate(data)
+    llm = get_llm("reason", temperature=0.2)
+    chain = llm.with_structured_output(_LLMOutput)
+    return chain.invoke([
+        ("system", system_prompt),
+        ("human", user_content),
+    ])
 
 
 def analyze_standalone(resume_text: str) -> _LLMOutput:
