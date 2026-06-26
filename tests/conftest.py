@@ -15,3 +15,16 @@ def _disable_supabase_auth(monkeypatch):
 
     monkeypatch.setattr(db_mod, "_client", None)
     monkeypatch.setattr(db_mod, "get_client", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def _mock_embeddings(monkeypatch, request):
+    """Mock FastEmbed for fast tests, skip if marked @pytest.mark.slow."""
+    if "slow" in request.node.keywords:
+        return
+    import app.rag.embeddings as embeddings_mod
+    monkeypatch.setattr(
+        embeddings_mod,
+        "embed_texts",
+        lambda texts: [[0.1] * embeddings_mod.EMBED_DIM for _ in texts]
+    )
