@@ -31,10 +31,17 @@ def ensure_collection() -> None:
             pass  # concurrent caller already created it
 
 
-def upsert_chunks(user_id: str, doc_id: str, chunks: list[str]) -> int:
+def upsert_chunks(
+    user_id: str,
+    doc_id: str,
+    chunks: list[str],
+    *,
+    filename: str | None = None,
+) -> int:
     """Embed *chunks* and upsert them into Qdrant.
 
-    Each point carries ``{user_id, doc_id, text}`` in its payload.
+    Each point carries ``{user_id, doc_id, text, chunk_index, filename}``
+    so retrieval results can identify their source document and position.
 
     Returns:
         Number of points upserted.
@@ -48,9 +55,15 @@ def upsert_chunks(user_id: str, doc_id: str, chunks: list[str]) -> int:
         PointStruct(
             id=str(uuid.uuid4()),
             vector=vec,
-            payload={"user_id": user_id, "doc_id": doc_id, "text": text},
+            payload={
+                "user_id": user_id,
+                "doc_id": doc_id,
+                "text": text,
+                "chunk_index": idx,
+                "filename": filename or "",
+            },
         )
-        for text, vec in zip(chunks, vectors, strict=True)
+        for idx, (text, vec) in enumerate(zip(chunks, vectors, strict=True))
     ]
 
     client = get_qdrant()
@@ -91,6 +104,8 @@ def query(user_id: str, text: str, top_k: int = 6) -> list[dict]:
             "text": point.payload["text"],
             "score": point.score,
             "doc_id": point.payload["doc_id"],
+            "chunk_index": point.payload.get("chunk_index", 0),
+            "filename": point.payload.get("filename", ""),
         }
         for point in response.points
     ]
