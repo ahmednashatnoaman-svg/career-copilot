@@ -289,7 +289,6 @@ def _dispatch_route(state: CopilotState) -> str:
 
 def _aggregate_node(state: CopilotState) -> dict:
     """Compose a human-readable ``final_answer`` from whatever namespaced outputs are present."""
-    import json
     parts: list[str] = []
 
     if cv := state.get("cv_analysis"):
