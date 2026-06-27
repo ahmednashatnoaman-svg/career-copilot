@@ -287,11 +287,21 @@ def _dispatch_route(state: CopilotState) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _to_dict(obj: any) -> dict:
+    if isinstance(obj, dict):
+        return obj
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    return getattr(obj, "__dict__", {})
+
 def _aggregate_node(state: CopilotState) -> dict:
     """Compose a human-readable ``final_answer`` from whatever namespaced outputs are present."""
     parts: list[str] = []
 
     if cv := state.get("cv_analysis"):
+        cv = _to_dict(cv)
         summary = cv.get("summary", "")
         skills = ", ".join(cv.get("skills", []))
         parts.append(f"### 📄 CV Analysis\n\n**Summary:** {summary}\n\n**Skills:** {skills}")
@@ -301,11 +311,13 @@ def _aggregate_node(state: CopilotState) -> dict:
         parts.append(f"### 📚 Knowledge Base\n\n{answer}")
 
     if matching_out := state.get("matching"):
+        matching_out = _to_dict(matching_out)
         ranked = matching_out.get("ranked", [])
         if ranked:
             lines = ["### 🎯 Top Job Matches\n"]
             for i, match in enumerate(ranked, 1):
-                job = match.get("job", {})
+                match = _to_dict(match)
+                job = _to_dict(match.get("job", {}))
                 title = job.get("title", "Unknown Role")
                 company = job.get("company", "Unknown Company")
                 url = job.get("url", "#")
@@ -316,11 +328,14 @@ def _aggregate_node(state: CopilotState) -> dict:
                 if rationale:
                     lines.append(f"   - *Why it's a match:* {rationale}")
             parts.append("\n".join(lines))
-    elif market_out := state.get("market"):
+            
+    if market_out := state.get("market"):
+        market_out = _to_dict(market_out)
         jobs = market_out.get("jobs", [])
         if jobs:
             lines = ["### 💼 Market Research (Jobs Found)\n"]
             for i, job in enumerate(jobs, 1):
+                job = _to_dict(job)
                 title = job.get("title", "Unknown Role")
                 company = job.get("company", "Unknown Company")
                 url = job.get("url", "#")
@@ -328,14 +343,17 @@ def _aggregate_node(state: CopilotState) -> dict:
             parts.append("\n".join(lines))
 
     if portfolio_out := state.get("portfolio"):
+        portfolio_out = _to_dict(portfolio_out)
         analysis = portfolio_out.get("analysis", "")
         parts.append(f"### 💻 Portfolio Analysis\n\n{analysis}")
 
     if career_plan_out := state.get("career_plan"):
+        career_plan_out = _to_dict(career_plan_out)
         plan = career_plan_out.get("plan", "")
         parts.append(f"### 🗺️ Career Plan\n\n{plan}")
 
     if coaching_out := state.get("coaching"):
+        coaching_out = _to_dict(coaching_out)
         response = (
             coaching_out.get("response", "")
             if isinstance(coaching_out, dict)
