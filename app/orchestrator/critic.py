@@ -147,7 +147,7 @@ def critic_route(state: CopilotState) -> str:
     verdict: dict | None = state.get("critic_verdict")
     if verdict is None:
         # Defensive fallback: no verdict stored → escalate
-        return "escalate" if state.get("application") else "accept"
+        return "escalate" if "application" in state.get("plan", []) else "accept"
 
     action: str = verdict.get("action", "ESCALATE")
 
@@ -157,7 +157,7 @@ def critic_route(state: CopilotState) -> str:
         return "regenerate"
     
     # If action is ESCALATE, we only want to HITL (application_send) if an application was drafted
-    if state.get("application"):
+    if "application" in state.get("plan", []):
         return "escalate"
     
     # Otherwise, it's a search/coaching escalation, just aggregate what we have
