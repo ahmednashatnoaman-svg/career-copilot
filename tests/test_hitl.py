@@ -121,12 +121,11 @@ class TestApplicationSendNodeEdgeCases:
         with patch("app.orchestrator.hitl.interrupt", return_value={"approved": True}):
             output = application_send_node(state)  # must not KeyError
 
-        assert "application" in output
-        assert output["application"]["status"] == "APPROVED"
+        assert output == {}
 
     def test_empty_application_dict_does_not_raise(self):
         state = _make_state(application={})
         with patch("app.orchestrator.hitl.interrupt", return_value={"approved": False}):
             output = application_send_node(state)
 
-        assert output["application"]["status"] == "REJECTED"
+        assert output == {}

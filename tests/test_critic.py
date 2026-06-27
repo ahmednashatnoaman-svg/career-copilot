@@ -31,6 +31,7 @@ def _make_state(**kwargs) -> CopilotState:
         "final_answer": "The answer is 42.",
         "evidence": [{"text": "source doc", "score": 0.9}],
         "critic_retries": 0,
+        "application": {"status": "DRAFT"}
     }
     defaults.update(kwargs)
     return defaults
